@@ -9,7 +9,10 @@
  * App.tsx and src/linkRouter.ts call this facade, never `ipc` or
  * `isTauri()` directly, so the branching lives in exactly one place.
  */
-import { ipc, isTauri, type LinkIndexEntry, type TreeNode } from "./ipc";
+import { ipc, isTauri, type LinkIndexEntry, type TreeNode, type SearchHit } from "./ipc";
+
+// Re-export these types so callers can import from vault instead of ipc
+export type { LinkIndexEntry, SearchHit };
 
 // Eagerly inline every sample .md file as raw text, keyed by its path
 // relative to samples/ (which stands in for the vault root in browser mode).
@@ -216,5 +219,52 @@ export const vault = {
     }
     externalChangeListeners.add(handler);
     return () => externalChangeListeners.delete(handler);
+  },
+
+  /**
+   * Full-text search: case-insensitive, regex-with-literal-fallback, capped
+   * at 500 hits. Mirrors ipc.search's semantics exactly so link resolution
+   * logic doesn't need to know which mode it's in.
+   */
+  async search(query: string): Promise<Array<{ path: string; line: number; text: string }>> {
+    if (isTauri()) return ipc.search(query);
+
+    // Browser mode: search all files in the vault
+    const results: Array<{ path: string; line: number; text: string }> = [];
+    const MAX_RESULTS = 500;
+
+    // Try as regex; fall back to literal string on invalid regex
+    let pattern: RegExp | null = null;
+    try {
+      pattern = new RegExp(query, "i"); // case-insensitive
+    } catch {
+      // Invalid regex — treat as literal
+      pattern = null;
+    }
+
+    for (const [path, file] of browserFiles) {
+      if (results.length >= MAX_RESULTS) break;
+
+      const lines = file.content.split("\n");
+      for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+        if (results.length >= MAX_RESULTS) break;
+
+        const text = lines[lineNum];
+        let matches = false;
+
+        if (pattern) {
+          matches = pattern.test(text);
+        } else {
+          // Literal fallback: case-insensitive substring
+          matches = text.toLowerCase().includes(query.toLowerCase());
+        }
+
+        if (matches) {
+          results.push({ path, line: lineNum + 1, text });
+        }
+      }
+    }
+
+    return results;
   },
 };

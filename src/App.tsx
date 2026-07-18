@@ -6,6 +6,8 @@ import { ConflictBanner } from "./components/ConflictBanner";
 import { Toc } from "./components/Toc";
 import { Tree } from "./components/Tree";
 import { LinkPopover } from "./components/LinkPopover";
+import { SearchPanel } from "./components/SearchPanel";
+import { QuickSwitcher } from "./components/QuickSwitcher";
 import { useAppStore } from "./stores/appStore";
 import { ipc, isTauri } from "./ipc";
 import { vault, isConflictError } from "./vault";
@@ -64,6 +66,8 @@ export default function App() {
   const [doc, setDoc] = useState<RenderedDoc | null>(null);
   const [zoom, setZoom] = useState(1);
   const [popover, setPopover] = useState<PopoverState | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
 
   // ---- Phase 4: editing / saving / conflict state ----
   // mtimeMs and dirty are plain refs — nothing renders their raw value
@@ -429,10 +433,27 @@ export default function App() {
     if (!useAppStore.getState().editing) setEditing(true);
   }, [conflict, cancelAutosave, setEditing]);
 
-  // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save (Phase 4).
+  // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save, ⇧⌘F search, ⌘P quick switcher.
+  // Both Cmd (macOS) and Ctrl (testing) work.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
+
+      // Guard: block shortcuts while typing in text inputs/textareas, but NOT in checkboxes
+      // or other non-text inputs. Also not in CodeMirror's contenteditable regions.
+      const target = e.target as HTMLElement;
+      const isTextInput =
+        (target instanceof HTMLInputElement &&
+          (target.type === "text" || target.type === "search" || target.type === "") &&
+          !target.closest(".search-input, .quick-switcher-input")) ||
+        target instanceof HTMLTextAreaElement;
+
+      if (isTextInput) {
+        // Allow ⌘P and ⇧⌘F to open panels even from text inputs, block everything else
+        const isSearchOrSwitcher = (e.key.toLowerCase() === "p") || (e.key.toLowerCase() === "f" && e.shiftKey);
+        if (!isSearchOrSwitcher) return;
+      }
+
       if (e.key === "[") {
         e.preventDefault();
         goBack();
@@ -451,6 +472,14 @@ export default function App() {
       } else if (e.key.toLowerCase() === "s") {
         e.preventDefault();
         handleSaveNow();
+      } else if (e.key.toLowerCase() === "p") {
+        // ⌘P / Ctrl+P: quick switcher
+        e.preventDefault();
+        setQuickSwitcherOpen(true);
+      } else if (e.key.toLowerCase() === "f" && e.shiftKey) {
+        // ⇧⌘F / Ctrl+Shift+F: search
+        e.preventDefault();
+        setSearchOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -484,16 +513,20 @@ export default function App() {
 
   return (
     <div className="shell">
-      {showTree && (
-        <aside className="pane-tree">
-          {isTauri() && (
-            <button className="tree-item" onClick={pickRoot} style={{ marginBottom: 12 }}>
-              <FolderOpen size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />{" "}
-              {rootName ?? "Choose folder…"}
-            </button>
-          )}
-          <Tree nodes={tree} currentPath={currentPath} onOpen={navigate} />
-        </aside>
+      {searchOpen ? (
+        <SearchPanel open={searchOpen} onClose={() => setSearchOpen(false)} />
+      ) : (
+        showTree && (
+          <aside className="pane-tree">
+            {isTauri() && (
+              <button className="tree-item" onClick={pickRoot} style={{ marginBottom: 12 }}>
+                <FolderOpen size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />{" "}
+                {rootName ?? "Choose folder…"}
+              </button>
+            )}
+            <Tree nodes={tree} currentPath={currentPath} onOpen={navigate} />
+          </aside>
+        )
       )}
 
       <main className="pane-doc">
@@ -609,6 +642,8 @@ export default function App() {
           </div>
         </LinkPopover>
       )}
+
+      <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
     </div>
   );
 }

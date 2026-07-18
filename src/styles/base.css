@@ -241,3 +241,244 @@ button {
 .link-popover-button:hover {
   background: var(--paper-3);
 }
+
+/* ---- Search panel (⇧⌘F) ---- */
+
+.search-panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--pane-tree-width);
+  border-right: var(--border-faint);
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+}
+
+.search-panel-header {
+  flex-shrink: 0;
+  padding: 14px;
+  border-bottom: var(--border-faint);
+  display: flex;
+  gap: 8px;
+}
+
+.search-input-wrapper {
+  flex: 1;
+}
+
+.search-input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  padding: 6px 8px;
+  border: var(--border-hairline);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.search-input::placeholder {
+  color: var(--graphite-light);
+}
+
+.search-input:focus {
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.search-close {
+  flex-shrink: 0;
+  padding: 2px;
+  color: var(--graphite);
+}
+
+.search-close:hover {
+  color: var(--ink);
+}
+
+.search-results {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.search-empty {
+  padding: 16px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite-light);
+  text-align: center;
+}
+
+.search-hit-count {
+  padding: 8px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite-light);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: var(--border-faint);
+  background: var(--paper-3);
+}
+
+.search-file-group {
+  border-bottom: var(--border-faint);
+}
+
+.search-file-path {
+  padding: 8px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--paper-2);
+  font-weight: 500;
+}
+
+.search-hit {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 14px;
+  border: none;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--graphite);
+  cursor: pointer;
+}
+
+.search-hit:hover {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.search-hit-line {
+  display: flex;
+  gap: 8px;
+}
+
+.search-hit-number {
+  flex-shrink: 0;
+  color: var(--graphite-light);
+  width: 32px;
+  text-align: right;
+}
+
+.search-hit-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes search-pulse {
+  0% {
+    background-color: var(--paper-2);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.search-scroll-pulse {
+  animation: search-pulse 0.6s var(--ease) forwards;
+}
+
+/* ---- Quick switcher (⌘P) ---- */
+
+.quick-switcher-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.quick-switcher {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 420px;
+  z-index: 50;
+  background: var(--paper);
+  border: var(--border-hairline);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.15);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.quick-switcher-input {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  padding: 12px 14px;
+  border: none;
+  border-bottom: var(--border-faint);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.quick-switcher-input::placeholder {
+  color: var(--graphite-light);
+}
+
+.quick-switcher-input:focus {
+  outline: 1px solid var(--ink);
+  outline-offset: -1px;
+}
+
+.quick-switcher-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.quick-switcher-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: var(--graphite);
+  cursor: pointer;
+}
+
+.quick-switcher-item:hover {
+  background: var(--paper-3);
+}
+
+.quick-switcher-item.selected {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.quick-switcher-stem {
+  font-family: var(--font-mono);
+  font-size: var(--size-body);
+  font-weight: 500;
+  color: inherit;
+}
+
+.quick-switcher-path {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite-light);
+  margin-top: 2px;
+}
+
+.quick-switcher-empty {
+  padding: 24px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite-light);
+  text-align: center;
+}

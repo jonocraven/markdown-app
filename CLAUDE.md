@@ -1,11 +1,12 @@
 # Folio — markdown viewer/editor (Tauri 2 + React + TS)
-Read PLAN.md before any work. Current phase: Phase 4 (editor + safe writes)
-complete — CodeMirror 6 editor themed to the reader, ⌘E toggle with
-proportional scroll mapping, ⌘S + 2s idle autosave through the vault's
-conflict-checked write path, non-modal conflict banner (keep mine / take
-theirs / show both), real checkbox write-back — see NEXT_STEPS.md for the
-handoff state and per-phase model assignments. Next: Phase 5 (search +
-quick switcher).
+Read PLAN.md before any work. Current phase: Phase 5 (search + quick switcher)
+complete — vault.search() delegates to ipc.search() in Tauri and implements
+identical semantics in browser mode; SearchPanel (⇧⌘F) with grouped-by-file
+results, click-to-navigate and scroll-to-line with brief highlight pulse;
+QuickSwitcher (⌘P) centred overlay with fuzzy file stem matching, arrow keys
+and Enter to open, keyboard shortcuts properly guarded to not block after
+checkbox clicks — see NEXT_STEPS.md for the handoff state. Next: Phase 6
+(polish + packaging).
 
 ## Rules
 - Viewer-first. The Reader's typography is the product; never regress it.
