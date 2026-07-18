@@ -23,9 +23,6 @@ interface AppState {
   showTree: boolean;
   showToc: boolean;
 
-  // Tree expansion state (persisted, keyed by root path)
-  collapsedNodes: Set<string>;
-
   setRoot: (path: string, name: string) => void;
   setTree: (tree: TreeNode[]) => void;
   navigate: (path: string) => void;
@@ -36,7 +33,6 @@ interface AppState {
   toggleEditing: () => void;
   setEditing: (editing: boolean) => void;
   togglePane: (pane: "tree" | "toc") => void;
-  setCollapsedNodes: (nodes: Set<string>) => void;
   hydratePersistedState: () => Promise<void>;
 }
 
@@ -50,7 +46,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   forward: [],
   showTree: true,
   showToc: true,
-  collapsedNodes: new Set(),
 
   setRoot: (path, name) =>
     set({ rootPath: path, rootName: name, currentPath: null, back: [], forward: [] }),
@@ -120,16 +115,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { [key]: value };
     }),
 
-  setCollapsedNodes: (nodes) => set({ collapsedNodes: nodes }),
-
   hydratePersistedState: async () => {
     const showTree = await persistGet("folio.showTree", true);
     const showToc = await persistGet("folio.showToc", true);
-    const collapsedNodesArray = await persistGet<string[]>("folio.collapsedNodes", []);
-    set({
-      showTree,
-      showToc,
-      collapsedNodes: new Set(collapsedNodesArray),
-    });
+    set({ showTree, showToc });
   },
 }));

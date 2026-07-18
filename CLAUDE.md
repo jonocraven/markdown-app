@@ -9,8 +9,11 @@ real filesystem) before `tauri build`.
 
 ## Rules
 - Viewer-first. The Reader's typography is the product; never regress it.
-- Design system: Monochrome (PLAN.md §6). No colour anywhere except the muted
-  code-highlighting exception. No Tailwind, no shadcn, no emoji-as-UI.
+- Design system: mostly Monochrome, crisp white/grey ground (PLAN.md §6,
+  superseded by "Correction 2"). One restrained terracotta accent
+  (`--accent`) plus the muted code-highlighting exception — no other colour.
+  File browser is a Finder-style column view, not an expand/collapse tree.
+  No Tailwind, no shadcn, no emoji-as-UI.
 - All disk writes go through write_file (atomic + mtime conflict check). Never
   add a second write path.
 - Plain .md files on disk are the only storage. No database, no sidecar files

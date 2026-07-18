@@ -20,13 +20,40 @@ body {
 }
 
 ::selection {
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 :focus-visible {
-  outline: 1px solid var(--ink);
+  outline: 1px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* A quiet, thin scrollbar rather than the OS-default chunky one. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--graphite-light) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--paper-3);
+  border-radius: var(--radius);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--graphite-light);
+  background-clip: padding-box;
 }
 
 button {
@@ -50,8 +77,10 @@ button {
   width: var(--pane-tree-width);
   flex-shrink: 0;
   border-right: var(--border-faint);
-  overflow-y: auto;
+  overflow: hidden;
   padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
 }
 
 .pane-doc {
@@ -111,10 +140,13 @@ button {
   border-radius: var(--radius);
   padding: 2px 10px;
   color: var(--ink);
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
 .save-button:hover:not(:disabled) {
-  background: var(--paper-2);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .save-button:disabled {
@@ -136,6 +168,7 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease);
 }
 
 .tree-item:hover {
@@ -145,6 +178,67 @@ button {
 .tree-item[aria-current="true"] {
   color: var(--ink);
   background: var(--paper-2);
+}
+
+/* ---- Column browser (Finder-style Miller columns) ---- */
+
+.tree-columns {
+  display: flex;
+  height: 100%;
+  overflow-x: auto;
+  margin: 0 -14px;
+}
+
+.tree-column {
+  flex-shrink: 0;
+  width: 168px;
+  overflow-y: auto;
+  border-right: var(--border-faint);
+  padding: 2px 0;
+}
+
+.tree-column:first-child {
+  padding-left: 0;
+}
+
+.tree-col-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+  text-align: left;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite);
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+
+.tree-col-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-col-item .chevron {
+  flex-shrink: 0;
+  color: var(--graphite-light);
+  transition: color 0.12s var(--ease);
+}
+
+.tree-col-item:hover {
+  background: var(--paper-2);
+}
+
+.tree-col-item.selected {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.tree-col-item.selected .chevron {
+  color: var(--accent-ink);
 }
 
 /* ---- TOC ---- */
@@ -167,7 +261,7 @@ button {
 }
 
 .toc-item.toc-active {
-  color: var(--ink);
+  color: var(--accent);
 }
 
 .toc-depth-3 {
@@ -207,6 +301,17 @@ button {
 
 /* ---- Link popover: wikilink disambiguation, broken-wikilink create offer ---- */
 
+@keyframes folio-popover-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .link-popover {
   position: fixed;
   z-index: 50;
@@ -219,6 +324,8 @@ button {
   border: var(--border-hairline);
   border-radius: var(--radius);
   padding: 10px;
+  transform-origin: top left;
+  animation: folio-popover-in 0.12s var(--ease) both;
 }
 
 .link-popover-label {
@@ -270,6 +377,17 @@ button {
 
 /* ---- Search panel (⇧⌘F) ---- */
 
+@keyframes folio-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .search-panel {
   position: absolute;
   left: 0;
@@ -281,6 +399,7 @@ button {
   display: flex;
   flex-direction: column;
   z-index: 30;
+  animation: folio-slide-in 0.15s var(--ease) both;
 }
 
 .search-panel-header {
@@ -415,13 +534,34 @@ button {
   animation: search-pulse 0.6s var(--ease) forwards;
 }
 
-/* ---- Quick switcher (⌘P) ---- */
+/* ---- Quick switcher (⌘K) ---- */
+
+@keyframes folio-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes folio-pop-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.97) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) translateY(0);
+  }
+}
 
 .quick-switcher-backdrop {
   position: fixed;
   inset: 0;
   z-index: 40;
   background: rgba(0, 0, 0, 0.3);
+  animation: folio-fade-in 0.15s var(--ease) both;
 }
 
 .quick-switcher {
@@ -435,10 +575,11 @@ button {
   background: var(--paper);
   border: var(--border-hairline);
   border-radius: var(--radius);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   max-height: 70vh;
   display: flex;
   flex-direction: column;
+  animation: folio-pop-in 0.18s var(--ease) both;
 }
 
 .quick-switcher-input {
@@ -483,8 +624,13 @@ button {
 }
 
 .quick-switcher-item.selected {
-  background: var(--paper-2);
-  color: var(--ink);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.quick-switcher-item.selected .quick-switcher-path {
+  color: var(--accent-ink);
+  opacity: 0.75;
 }
 
 .quick-switcher-stem {
@@ -522,8 +668,9 @@ button {
   background: var(--paper);
   border: var(--border-hairline);
   border-radius: var(--radius);
-  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   padding: 16px;
+  animation: folio-pop-in 0.18s var(--ease) both;
 }
 
 .new-file-input {

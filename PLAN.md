@@ -6,6 +6,8 @@ This document is written to be handed directly to Claude Code. It contains the p
 
 **Correction (post-v1, on-device testing):** this original spec bound the quick switcher to `⌘P` while separately expecting `⌘P` to trigger printing — a self-contradiction. `⌘P` is native system Print and must never be intercepted by app code; the quick switcher is bound to **`⌘K`** instead everywhere below.
 
+**Correction 2 (post-v1, on real user feedback):** the Monochrome palette in §6 originally called for a cream (`#FAFADF`) ground and zero colour anywhere outside the Shiki code exception. On-device testing found the cream too warm/dated and the file tree too plain, so: (a) `--paper`/`--paper-2`/`--paper-3` are now a crisp white/light-grey ground instead of cream, (b) a single restrained accent colour (`--accent`, a muted terracotta, `#B0451F`) is now used deliberately — links, the active tree/TOC/quick-switcher item, checked checkboxes, selection colour, and small decorative touches — while everything else stays monochrome, and (c) the file tree is a Finder-style column browser (Miller columns), not an indented expand/collapse tree. Treat §6 and the tree description in §4/§7 as superseded by this note wherever they conflict.
+
 ---
 
 ## 1. Product overview
@@ -187,8 +189,11 @@ Read PLAN.md before any work. Current phase: <update me>.
 
 ## Rules
 - Viewer-first. The Reader's typography is the product; never regress it.
-- Design system: Monochrome (PLAN.md §6). No colour anywhere except the muted
-  code-highlighting exception. No Tailwind, no shadcn, no emoji-as-UI.
+- Design system: mostly Monochrome, crisp white/grey ground (PLAN.md §6,
+  superseded by "Correction 2" above). One restrained terracotta accent
+  (`--accent`) plus the muted code-highlighting exception — no other colour.
+  File browser is a Finder-style column view, not an expand/collapse tree.
+  No Tailwind, no shadcn, no emoji-as-UI.
 - All disk writes go through write_file (atomic + mtime conflict check). Never
   add a second write path.
 - Plain .md files on disk are the only storage. No database, no sidecar files

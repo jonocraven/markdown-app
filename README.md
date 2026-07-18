@@ -90,7 +90,7 @@ The frontend and backend communicate via Tauri's IPC layer (`src/ipc.ts`). Brows
 
 ## Design
 
-Monochrome, typographic, print-first: cream paper (#FAFADF), ink text (#1A1A16), hairline rules. Fonts are bundled locally (Jost for headings, Lora for body, JetBrains Mono for chrome and code) so the app works offline.
+Typographic, print-first, mostly monochrome: crisp white/light-grey paper (#FFFFFF), ink text (#16171A), hairline rules, plus a single restrained terracotta accent (#B0451F) for links, selection and active states. The file browser is a Finder-style column view. Fonts are bundled locally (Jost for headings, Lora for body, JetBrains Mono for chrome and code) so the app works offline.
 
 See `PLAN.md` §6 for the complete design tokens and application notes. See `CLAUDE.md` for development rules and the current build phase.
 

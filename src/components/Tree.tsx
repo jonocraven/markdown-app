@@ -1,8 +1,6 @@
-import { useMemo, useState } from "react";
-import { ChevronRight, ChevronDown, FileText } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronRight, FileText, Folder } from "lucide-react";
 import type { TreeNode } from "../ipc";
-import { useAppStore } from "../stores/appStore";
-import { persistSet } from "../persist";
 import { LinkPopover } from "./LinkPopover";
 
 interface TreeProps {
@@ -15,15 +13,25 @@ interface TreeProps {
 
 type ContextMenuState = { path: string; name: string; x: number; y: number; confirmDelete: boolean };
 
-/** File tree sidebar. Expansion state persists via tauri-plugin-store /
- * localStorage (hydrated on app startup). Right-click a file for a context
- * menu (Rename / Move to Bin — PLAN.md §4/§7 Phase 6), styled like the
- * link-routing popovers (paper ground, hairline border, mono small type). */
+const stripExt = (name: string) => name.replace(/\.(md|markdown)$/, "");
+
+/**
+ * File browser, styled after Finder's column view: each directory level gets
+ * its own vertical list, laid out left-to-right, with the whole strip
+ * scrolling horizontally as you drill deeper. `chain` holds the sequence of
+ * directory paths drilled into beyond the root (so columns.length ===
+ * chain.length + 1). It resyncs from `currentPath`'s own ancestry whenever a
+ * file is opened from elsewhere (a wikilink, the quick switcher, search) —
+ * exactly like Finder snapping its columns to a file revealed by Spotlight —
+ * and otherwise just grows/shrinks as the user clicks folders in a column.
+ */
 export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }: TreeProps) {
-  const { collapsedNodes, setCollapsedNodes } = useAppStore();
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [chain, setChain] = useState<string[]>([]);
+
+  const nodeByPath = useMemo(() => new Map(nodes.map((n) => [n.path, n])), [nodes]);
 
   const childrenOf = useMemo(() => {
     const map = new Map<string | null, TreeNode[]>();
@@ -40,20 +48,40 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
     return map;
   }, [nodes]);
 
-  const toggle = (path: string) => {
-    const next = new Set(collapsedNodes);
-    if (next.has(path)) next.delete(path);
-    else next.add(path);
-    setCollapsedNodes(next);
-    // Persist the updated state
-    persistSet("folio.collapsedNodes", Array.from(next));
+  const ancestorsOf = (path: string | null): string[] => {
+    const result: string[] = [];
+    let cur = path ? (nodeByPath.get(path)?.parent ?? null) : null;
+    while (cur) {
+      result.unshift(cur);
+      cur = nodeByPath.get(cur)?.parent ?? null;
+    }
+    return result;
+  };
+
+  // A file opened from outside the tree (link click, quick switcher, search)
+  // should reveal itself in the columns, just like Finder does.
+  useEffect(() => {
+    setChain(ancestorsOf(currentPath));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPath, nodes]);
+
+  const fileParent = currentPath ? (nodeByPath.get(currentPath)?.parent ?? null) : null;
+  const columnParents: (string | null)[] = [null, ...chain];
+
+  const openFolder = (columnIndex: number, path: string) => {
+    setChain((prev) => [...prev.slice(0, columnIndex), path]);
+  };
+
+  const openFile = (columnIndex: number, path: string) => {
+    setChain((prev) => prev.slice(0, columnIndex));
+    onOpen(path);
   };
 
   const openMenu = (e: React.MouseEvent, node: TreeNode) => {
     e.preventDefault();
     setMenu({
       path: node.path,
-      name: node.name.replace(/\.(md|markdown)$/, ""),
+      name: stripExt(node.name),
       x: e.clientX,
       y: e.clientY,
       confirmDelete: false,
@@ -73,51 +101,56 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
     if (trimmed) onRenameFile(path, trimmed);
   };
 
-  const renderLevel = (parent: string | null, depth: number): React.ReactNode =>
-    (childrenOf.get(parent) ?? []).map((node) => (
-      <div key={node.path} style={{ paddingLeft: depth === 0 ? 0 : 12 }}>
-        {node.isDir ? (
-          <>
-            <button className="tree-item" onClick={() => toggle(node.path)}>
-              {collapsedNodes.has(node.path) ? (
-                <ChevronRight size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />
-              ) : (
-                <ChevronDown size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />
-              )}{" "}
-              {node.name}
-            </button>
-            {!collapsedNodes.has(node.path) && renderLevel(node.path, depth + 1)}
-          </>
-        ) : renamingPath === node.path ? (
-          <input
-            autoFocus
-            className="tree-rename-input"
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") confirmRename(node.path);
-              else if (e.key === "Escape") setRenamingPath(null);
-            }}
-            onBlur={() => setRenamingPath(null)}
-          />
-        ) : (
-          <button
-            className="tree-item"
-            aria-current={node.path === currentPath}
-            onClick={() => onOpen(node.path)}
-            onContextMenu={(e) => openMenu(e, node)}
-          >
-            <FileText size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />{" "}
-            {node.name.replace(/\.(md|markdown)$/, "")}
-          </button>
-        )}
-      </div>
-    ));
-
   return (
-    <nav className="chrome">
+    <nav className="chrome" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <p className="chrome-label">Files</p>
-      {renderLevel(null, 0)}
+      <div className="tree-columns" style={{ flex: 1, minHeight: 0 }}>
+        {columnParents.map((parent, columnIndex) => {
+          const items = childrenOf.get(parent) ?? [];
+          if (items.length === 0) return null;
+          const selectedPath = columnParents[columnIndex + 1] ??
+            (parent === fileParent ? currentPath : null);
+
+          return (
+            <div className="tree-column" key={parent ?? "__root"}>
+              {items.map((node) =>
+                renamingPath === node.path ? (
+                  <input
+                    key={node.path}
+                    autoFocus
+                    className="tree-rename-input"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") confirmRename(node.path);
+                      else if (e.key === "Escape") setRenamingPath(null);
+                    }}
+                    onBlur={() => setRenamingPath(null)}
+                  />
+                ) : (
+                  <button
+                    key={node.path}
+                    className={`tree-item tree-col-item${node.path === selectedPath ? " selected" : ""}`}
+                    aria-current={node.path === selectedPath}
+                    onClick={() =>
+                      node.isDir ? openFolder(columnIndex, node.path) : openFile(columnIndex, node.path)
+                    }
+                    onContextMenu={(e) => (node.isDir ? undefined : openMenu(e, node))}
+                  >
+                    {node.isDir ? (
+                      <Folder size={12} strokeWidth={1.5} />
+                    ) : (
+                      <FileText size={12} strokeWidth={1.5} />
+                    )}
+                    <span className="tree-col-item-label">{stripExt(node.name)}</span>
+                    {node.isDir && <ChevronRight size={12} strokeWidth={1.5} className="chevron" />}
+                  </button>
+                ),
+              )}
+            </div>
+          );
+        })}
+      </div>
 
       {menu && !menu.confirmDelete && (
         <LinkPopover x={menu.x} y={menu.y} kind="tree-menu" onClose={() => setMenu(null)}>

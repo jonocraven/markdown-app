@@ -38,6 +38,15 @@
   margin: 0 0 14px;
 }
 
+.doc-path::before {
+  content: "";
+  display: block;
+  width: 28px;
+  height: 3px;
+  background: var(--accent);
+  margin-bottom: 10px;
+}
+
 .frontmatter {
   font-family: var(--font-mono);
   font-size: var(--size-small);
@@ -125,14 +134,15 @@
 }
 
 .reader a {
-  color: var(--ink);
+  color: var(--accent);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
+  transition: background 0.12s var(--ease);
 }
 
 .reader a:hover {
-  background: var(--paper-2);
+  background: var(--accent-soft);
 }
 
 .reader a.broken-link {
@@ -199,7 +209,8 @@
 }
 
 .reader input[type="checkbox"]:checked {
-  background: var(--ink);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .reader input[type="checkbox"]:checked::after {
