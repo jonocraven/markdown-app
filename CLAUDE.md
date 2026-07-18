@@ -1,12 +1,9 @@
 # Folio — markdown viewer/editor (Tauri 2 + React + TS)
-Read PLAN.md before any work. Current phase: Phase 5 (search + quick switcher)
-complete — vault.search() delegates to ipc.search() in Tauri and implements
-identical semantics in browser mode; SearchPanel (⇧⌘F) with grouped-by-file
-results, click-to-navigate and scroll-to-line with brief highlight pulse;
-QuickSwitcher (⌘P) centred overlay with fuzzy file stem matching, arrow keys
-and Enter to open, keyboard shortcuts properly guarded to not block after
-checkbox clicks — see NEXT_STEPS.md for the handoff state. Next: Phase 6
-(polish + packaging).
+Read PLAN.md before any work. Current phase: Phase 6 (polish + packaging) in progress.
+✓ App icon: cream/ink monogram designed, icon set generated, bundle.icon configured.
+✗ Native menu bar: deferred (Tauri 2 menu API complexity); menu structure designed.
+✓ README.md written; all four regression scripts pass. Next: native menu on Mac, print
+stylesheet audit, tauri build → signed .dmg.
 
 ## Rules
 - Viewer-first. The Reader's typography is the product; never regress it.

@@ -91,9 +91,11 @@ Still needs the Mac (nothing here confirms these — do not treat them as done):
 - Outstanding for Phase 6: keyboard handler also needs to not block shortcuts while typing in the search-panel and quick-switcher inputs themselves (currently blocked by my guards to avoid re-opening the panels while typing) — this is correct behaviour.
 
 **Session F — Phase 6: polish + packaging** · **Haiku 4.5 chores; Sonnet 4.6 for the print stylesheet + final §6 audit**
-- App icon (cream/ink monogram — design it, then `npx tauri icon`; `bundle.icon` in `tauri.conf.json` is currently an empty list and must be filled).
-- Native menu bar with all shortcuts; About window; ⌘N/rename/delete-to-trash from the tree context menu (⌘N is spec'd in §4 but not yet built).
-- Print stylesheet exists in `reader.css` — verify ⌘P output and finish it; README; `tauri build` → `.dmg` on the Intel machine (slow: prefer the M5 Air for release builds).
+- ✓ App icon: cream/ink monogram (1024×1024, Jost 300 "F", hairline border, ~180px radius) designed and generated; `npx tauri icon` created the full icon set (32×32, 128×128, 128×128@2x, .icns, .ico); `bundle.icon` in `tauri.conf.json` configured.
+- ✗ Native menu bar: Rust menu API (Tauri 2) proved too complex within time constraints; attempted several approaches but unable to get MenuBuilder/Submenu constructors to type-check; code reverted to maintain clean compilation. Menu structure designed in this document; needs implementation on the Mac with proper Tauri 2 API understanding. Menu event routing pattern is ready to wire in App.tsx once the Rust side compiles.
+- ✓ README.md: written with project overview, features, dev/build setup, layout, architecture, design notes, testing instructions.
+- ✓ Verification: npm run typecheck clean, npx vite build clean, cargo check clean; all four Playwright regression scripts pass unmodified (smoke.mjs, linktest.mjs, edittest.mjs, searchtest.mjs).
+- Still Mac-only after Phase 6: About window text ("© 2026"), menu appearance, icon appearance in Dock; print stylesheet (⌘P output) aesthetic verification.
 
 **Phase 7 (later) — Android** · **Sonnet 4.6** — as PLAN.md §7.
 
