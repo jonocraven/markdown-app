@@ -17,22 +17,39 @@ The hard, architecture-shaping work is done:
 
 | Layer | Status |
 | --- | --- |
-| TypeScript | ✓ `tsc --noEmit` clean; ✓ `vite build` clean |
-| Rendered output | ✓ Verified in Chromium: callouts ×5, KaTeX, Mermaid SVG, Shiki, wikilinks, checkboxes, footnotes, frontmatter, TOC, word count all render; screenshots reviewed against §6 |
-| Rust | ✗ **Never compiled.** This Linux container lacks the macOS/WebKit toolchain, so `cargo check` was impossible. Written conservatively against Tauri 2 stable APIs, but expect a handful of compile errors on first `npm run tauri dev` |
-| Tauri shell | ✗ Untested (no macOS here). Window config, capabilities, file associations unexercised |
+| TypeScript | ✓ `tsc --noEmit` clean; ✓ `vite build` clean (re-verified in the Session A Linux container after the startup-restore and Mermaid changes below) |
+| Rendered output | ✓ Verified headless in Chromium (`vite preview` + Playwright, Linux container): callouts ×5, KaTeX ×2, Mermaid SVG, Shiki, wikilinks ×3, checkboxes ×4, footnotes, frontmatter, TOC ×13, word count all render, all counts non-zero, no new console errors (one pre-existing harmless `favicon.ico` 404, unrelated). Screenshots reviewed against §6. **Still only checked in Chromium, never in WKWebView — that check stays on the Mac.** |
+| Rust | ✓ **Compiles clean on Linux as of Session A.** `apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev pkg-config` then `cargo check` and `cargo clippy` in `src-tauri/` both finish with zero errors and zero warnings. Two fixes were needed (see below); the write path, watcher and search commands are otherwise unchanged from the original scaffold. **Not yet run as `npm run tauri dev`, and never opened as a live window** — that stays on the Mac (no WKWebView/GTK window server here). |
+| Tauri shell | ✗ Untested (no macOS here, and this container has no display server to open a real window even on Linux). Window config, capabilities, file associations, drag-and-drop, "Open With" unexercised |
+| Startup restore | ✓ Wired (`current_root` IPC wrapper added, `App.tsx` calls it on mount and restores root + tree + watcher). ✗ Not exercised end-to-end against a live Tauri window — needs the Mac to confirm the workspace actually reopens after a real relaunch |
+
+### Session A fixes to the Rust core (this session)
+
+1. **Missing app icon.** `tauri::generate_context!()` panicked with `failed to open icon .../icons/icon.png: No such file or directory`. This is not Linux-specific — `tauri-codegen`'s `find_icon` falls back to `icons/icon.png` for the default window icon on **every** target when `bundle.icon` is empty (Windows only tries `.ico` first before hitting the same PNG fallback; macOS/Linux go straight to it). Added a small placeholder PNG (`src-tauri/icons/icon.png`, monochrome cream/ink, 256×256) purely to unblock compilation. `bundle.icon` in `tauri.conf.json` is still `[]` — the real icon design (`npx tauri icon`) remains a Phase 6 task; replace this placeholder file when that's done.
+2. **Unused import warning.** `commands.rs` imported `tauri::Manager` but never used it (the trait is only needed in `lib.rs`, which already imports it separately). Removed the unused import so `clippy` is warning-clean.
+
+No other changes were needed — `pick_root`/`FilePath::into_path`, the `notify` v8 watcher API, and the `tauri-plugin-store` `StoreExt` calls in `commands.rs` all matched the installed crate versions (tauri 2.11, notify 8.2, tauri-plugin-store 2.4) with no changes required.
 
 ## Task list from here, in order, with model assignments
 
 Per PLAN.md §7: Sonnet 4.6 for anything touching the pipeline, Rust IPC, CodeMirror or the write path; Haiku 4.5 for mechanical work; Opus only if a task is stuck twice.
 
 **Session A — first boot on the Mac** · **Sonnet 4.6** *(do this first; everything else depends on it)*
-1. `cd folio && npm install && npm run tauri dev` on the Intel MacBook Pro.
-2. Fix whatever `cargo` complains about in `commands.rs`/`lib.rs` until the shell opens (likely candidates: plugin API drift, `notify` v8 signatures, dialog `into_path`).
-3. Wire startup: call `current_root` → if set, `read_tree` + `watch_root` and restore the workspace (frontend hook exists; confirm end-to-end).
-4. Verify Phase 0/1 acceptance: styled shell opens; torture test renders in-app (WKWebView, not Chrome — re-check §6 details); reduced motion honoured; checkbox tick logs.
-5. Also verify Phase 2 acceptance while there: pick a Drive-synced root, edit a file externally, Reader updates within ~1s. Fix scroll preservation if it jumps.
-6. Known polish item: Mermaid node fills render pale grey, not `paper3` — adjust `themeVariables` in `src/markdown/mermaid.ts` in the real webview.
+
+Split across two environments — a Linux container did everything that doesn't need a real window or WKWebView; the rest is still pending on the Mac.
+
+Done in the Linux container (this session):
+1. ~~Fix whatever `cargo` complains about~~ — done. Installed the Linux system libs (`libwebkit2gtk-4.1-dev` etc.), then `cargo check`/`cargo clippy` in `src-tauri/` both came back clean after two small fixes (missing app icon, unused import — see the Verification status table above for detail).
+2. ~~Wire startup: call `current_root`~~ — done. Added `ipc.currentRoot()` to `src/ipc.ts` and an effect in `src/App.tsx` (mirrors the existing `pickRoot` callback) that calls it on mount, and on a hit calls `setRoot` + `setTree(await ipc.readTree())` + `await ipc.watchRoot()`.
+3. Known polish item: Mermaid node fills render pale grey, not `paper3` — **fixed**. The `neutral` theme hard-codes node fill (`mainBkg`) to `#eee` regardless of `themeVariables`; switched `src/markdown/mermaid.ts` to `theme: "base"` (the one theme where every colour derives from overrides) with explicit `mainBkg`/`nodeBkg`/`nodeBorder`/`clusterBkg` etc. Verified with a headless Chromium screenshot (`vite build` + `vite preview` + the scratchpad Playwright script) — the flowchart in the torture test now renders cream fills with ink strokes/text/arrows, reading as monochrome.
+4. `npm run typecheck` and `npx vite build` re-verified clean after the above.
+
+Still needs the Mac (nothing here confirms these — do not treat them as done):
+1. `cd folio && npm install && npm run tauri dev` — never run; this container has no display server and no WKWebView/GTK runtime to open a window in, only the compiler toolchain.
+2. Confirm the app actually opens a styled shell, and re-check §6 typography/Mermaid details in real WKWebView (not Chromium — WKWebView has its own CSS quirks per PLAN.md §8).
+3. Confirm startup restore end-to-end: launch once, pick a root, quit, relaunch, confirm the tree/watcher/root name come back without user action.
+4. Verify Phase 0/1 acceptance in-app: reduced motion honoured, checkbox tick logs.
+5. Verify Phase 2 acceptance: pick a Drive-synced root, edit a file externally, Reader updates within ~1s without losing scroll position.
 
 **Session B — Phase 1/2 chrome polish** · **Haiku 4.5**
 - TOC scroll-spy (IntersectionObserver, active item in ink).

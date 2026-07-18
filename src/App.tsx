@@ -37,6 +37,22 @@ export default function App() {
     }
   }, []);
 
+  // On launch in Tauri mode, restore the previously chosen root (if any) so
+  // the workspace reopens where it left off (PLAN.md §3, Phase 2).
+  useEffect(() => {
+    if (!isTauri()) return;
+    let cancelled = false;
+    ipc.currentRoot().then(async (root) => {
+      if (cancelled || !root) return;
+      setRoot(root.path, root.name);
+      setTree(await ipc.readTree());
+      await ipc.watchRoot();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [setRoot, setTree]);
+
   // Load the current file whenever navigation changes it.
   useEffect(() => {
     if (!isTauri() || !currentPath) return;

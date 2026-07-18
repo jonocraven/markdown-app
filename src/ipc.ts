@@ -46,6 +46,7 @@ export function isTauri(): boolean {
 
 export const ipc = {
   pickRoot: () => invoke<RootInfo | null>("pick_root"),
+  currentRoot: () => invoke<RootInfo | null>("current_root"),
   readTree: () => invoke<TreeNode[]>("read_tree"),
   readFile: (path: string) => invoke<FileContent>("read_file", { path }),
   writeFile: (path: string, content: string, expectedMtimeMs: number) =>

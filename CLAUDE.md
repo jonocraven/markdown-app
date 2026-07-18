@@ -1,7 +1,9 @@
 # Folio — markdown viewer/editor (Tauri 2 + React + TS)
-Read PLAN.md before any work. Current phase: Phase 1 (pipeline built, needs
-on-Mac verification) — see NEXT_STEPS.md for the handoff state and per-phase
-model assignments.
+Read PLAN.md before any work. Current phase: Phase 1/2 (pipeline built, Rust
+core now compiles clean on Linux, startup restore wired, Mermaid fill fixed —
+still needs on-Mac verification: `npm run tauri dev`, WKWebView checks,
+Drive-sync live-reload) — see NEXT_STEPS.md for the handoff state and
+per-phase model assignments.
 
 ## Rules
 - Viewer-first. The Reader's typography is the product; never regress it.
