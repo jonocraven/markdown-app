@@ -1,8 +1,9 @@
 // run-all.mjs — orchestrates the full regression suite for `npm run test:all`.
 //
 // Builds once, starts `vite preview` on a fixed port (4173, strictPort),
-// waits for it to answer, runs all five scripts sequentially against it,
-// then kills the server — reporting a combined pass/fail summary.
+// waits for it to answer, runs all six scripts sequentially against it
+// (the five desktop scripts, then mobiletest.mjs — PLAN-ANDROID.md §6
+// Phase A2), then kills the server — reporting a combined pass/fail summary.
 //
 // Each script also works standalone against an already-running preview
 // server via PREVIEW_URL (see tests/README.md) — this file is only the
@@ -13,7 +14,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 const PORT = 4173;
 const PREVIEW_URL = `http://localhost:${PORT}`;
-const SCRIPTS = ["smoke.mjs", "linktest.mjs", "edittest.mjs", "searchtest.mjs", "fileopstest.mjs"];
+const SCRIPTS = ["smoke.mjs", "linktest.mjs", "edittest.mjs", "searchtest.mjs", "fileopstest.mjs", "mobiletest.mjs"];
 
 function run(command, args, opts = {}) {
   return new Promise((resolve, reject) => {

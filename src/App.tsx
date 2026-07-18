@@ -11,13 +11,17 @@ import { SearchPanel } from "./components/SearchPanel";
 import { QuickSwitcher } from "./components/QuickSwitcher";
 import { NewFileDialog } from "./components/NewFileDialog";
 import { FolderBrowser } from "./components/FolderBrowser";
+import { AppBar } from "./components/AppBar";
+import { OverflowMenu } from "./components/OverflowMenu";
 import { useAppStore } from "./stores/appStore";
 import { ipc, isTauri } from "./ipc";
 import { vault, isConflictError } from "./vault";
 import { setTaskMarker } from "./taskMarkers";
 import { resolveLinkClick } from "./linkRouter";
-import { dirname, sanitizeFileName } from "./pathUtils";
+import { dirname, sanitizeFileName, stripMdExt } from "./pathUtils";
 import { isAndroid } from "./platform";
+import { useIsMobile } from "./hooks/useIsMobile";
+import { useHistoryBridge } from "./historyBridge";
 import type { RenderedDoc } from "./markdown/pipeline";
 
 const ZOOM_STEPS = [0.85, 1, 1.15, 1.3, 1.5];
@@ -80,6 +84,57 @@ export default function App() {
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFileError, setNewFileError] = useState<string | null>(null);
   const [folderBrowserOpen, setFolderBrowserOpen] = useState(false);
+
+  // ---- Phase A2: mobile single-column shell (PLAN-ANDROID.md §3) ----
+  // Structural branching only — see src/hooks/useIsMobile.ts for how this
+  // differs from the CSS breakpoint in src/styles/mobile.css.
+  const isMobile = useIsMobile();
+  // Mobile-only overlay UI state — distinct from the desktop showTree/
+  // showToc pane toggles (those are persisted preferences; these are
+  // transient takeovers). searchOpen/quickSwitcherOpen above are shared
+  // with desktop (⌘K/⇧⌘F, the native menu) and double as mobile overlays
+  // too — see mobileOverlayOpen below.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [tocSheetOpen, setTocSheetOpen] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+
+  // Single funnel closing EVERY mobile overlay — passed to the history
+  // bridge as the thing a hardware back press reconciles React state with
+  // when an overlay is open. Safe to call unconditionally: at most one of
+  // these is ever true, so the others are no-ops.
+  const closeAnyMobileOverlay = useCallback(() => {
+    setDrawerOpen(false);
+    setTocSheetOpen(false);
+    setOverflowOpen(false);
+    setSearchOpen(false);
+    setQuickSwitcherOpen(false);
+  }, []);
+
+  // True whenever ANY mobile overlay is showing — search/quick switcher
+  // only count while isMobile, since on desktop they're plain panels with
+  // no back-button contract (opening one there must not make the history
+  // bridge think an "overlay" is open).
+  const mobileOverlayOpen =
+    drawerOpen || tocSheetOpen || overflowOpen || (isMobile && (searchOpen || quickSwitcherOpen));
+
+  // Called here — before any OTHER effect in this component, including the
+  // browser-mode bootstrap navigate() a few effects below — so its internal
+  // mount effects (root-tagging, and the currentPath-change subscription
+  // that mirrors nav pushes) are registered in time to observe that very
+  // first navigation. React fires a component's effects in the order their
+  // hooks were called during render; if this hook were called later (after
+  // the bootstrap effect), that effect's navigate() would already have
+  // fired before this hook's subscription existed, leaving the WebView's
+  // history "one entry short" of the store's — harmless for the store
+  // itself, but it'd mean a hardware back could walk past this module's own
+  // root tag into whatever preceded the app's first real navigation (in a
+  // browser tab, "back" past the page's first entry; a real Android WebView
+  // has no such prior entry, so this only bites the Playwright/Chromium
+  // test bed — but there's no reason to leave the mismatch in either).
+  const { pushOverlay, popOverlay, swapOverlay, navigateFromOverlay } = useHistoryBridge({
+    overlayOpen: mobileOverlayOpen,
+    closeOverlay: closeAnyMobileOverlay,
+  });
 
   // ---- Phase 4: editing / saving / conflict state ----
   // mtimeMs and dirty are plain refs — nothing renders their raw value
@@ -591,6 +646,51 @@ export default function App() {
   }, []);
   const zoomReset = useCallback(() => setZoom(1), []);
 
+  // ---- Mobile overlay open/close (PLAN-ANDROID.md §3) ----
+  // (closeAnyMobileOverlay/mobileOverlayOpen/useHistoryBridge itself are
+  // declared up with the rest of the mobile shell state, near the top of
+  // the component — see the comment there for why the ORDER matters.)
+
+  // Search/quick switcher are opened from three places (⌘K/⇧⌘F, the native
+  // menu, and — on mobile — the app bar); funnelling every opener through
+  // these two keeps the history push in exactly one place instead of
+  // duplicating `if (isMobile) pushOverlay()` at each call site.
+  const requestOpenSearch = useCallback(() => {
+    setSearchOpen(true);
+    if (isMobile) pushOverlay();
+  }, [isMobile, pushOverlay]);
+  const requestOpenQuickSwitcher = useCallback(() => {
+    setQuickSwitcherOpen(true);
+    if (isMobile) pushOverlay();
+  }, [isMobile, pushOverlay]);
+  // Mobile-only closes for search/quick switcher: a pure state change, no
+  // history.back() — see historyBridge.ts's module comment on why (they
+  // call the store's navigate() themselves before onClose fires on a
+  // result pick, which a back() here would race).
+  const closeMobileSearch = useCallback(() => setSearchOpen(false), []);
+  const closeMobileSwitcher = useCallback(() => setQuickSwitcherOpen(false), []);
+
+  const openDrawer = useCallback(() => {
+    setDrawerOpen(true);
+    pushOverlay();
+  }, [pushOverlay]);
+
+  const openOverflowMenu = useCallback(() => {
+    setOverflowOpen(true);
+    pushOverlay();
+  }, [pushOverlay]);
+
+  // The overflow menu's "Contents" item: one overlay replacing another in
+  // the same tap, collapsed via swapOverlay's replaceState rather than
+  // popOverlay-then-openDrawer's back()+pushState (see historyBridge.ts).
+  const openTocFromOverflow = useCallback(() => {
+    setOverflowOpen(false);
+    setTocSheetOpen(true);
+    swapOverlay();
+  }, [swapOverlay]);
+
+  const fileStem = currentPath ? stripMdExt(currentPath.split("/").pop() ?? currentPath) : null;
+
   // ---- Conflict banner actions ----
 
   const resolveKeepMine = useCallback(async () => {
@@ -681,16 +781,16 @@ export default function App() {
       } else if (e.key.toLowerCase() === "k") {
         // ⌘K / Ctrl+K: quick switcher
         e.preventDefault();
-        setQuickSwitcherOpen(true);
+        requestOpenQuickSwitcher();
       } else if (e.key.toLowerCase() === "f" && e.shiftKey) {
         // ⇧⌘F / Ctrl+Shift+F: search
         e.preventDefault();
-        setSearchOpen(true);
+        requestOpenSearch();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goBack, goForward, handleToggleEditing, handleSaveNow, zoomIn, zoomOut]);
+  }, [goBack, goForward, handleToggleEditing, handleSaveNow, zoomIn, zoomOut, requestOpenQuickSwitcher, requestOpenSearch]);
 
   // Native menu bar clicks (Tauri only — see src-tauri/src/lib.rs's
   // on_menu_event/build_menu). Every id maps to the same action its
@@ -729,10 +829,10 @@ export default function App() {
             zoomReset();
             break;
           case "quick-open":
-            setQuickSwitcherOpen(true);
+            requestOpenQuickSwitcher();
             break;
           case "search":
-            setSearchOpen(true);
+            requestOpenSearch();
             break;
           case "open-folder":
             pickRoot();
@@ -753,7 +853,18 @@ export default function App() {
       cancelled = true;
       unlisten?.();
     };
-  }, [handleToggleEditing, goBack, goForward, togglePane, zoomIn, zoomOut, zoomReset, pickRoot]);
+  }, [
+    handleToggleEditing,
+    goBack,
+    goForward,
+    togglePane,
+    zoomIn,
+    zoomOut,
+    zoomReset,
+    pickRoot,
+    requestOpenQuickSwitcher,
+    requestOpenSearch,
+  ]);
 
   // Show zoom level briefly when it changes
   const [showZoomBriefly, setShowZoomBriefly] = useState(false);
@@ -780,132 +891,271 @@ export default function App() {
 
   const showConflictBanner = conflict !== null && conflict.path === currentPath;
 
-  return (
-    <div className="shell">
-      {searchOpen ? (
-        <SearchPanel open={searchOpen} onClose={() => setSearchOpen(false)} />
+  // Shared between both shells: the document itself (Reader/Editor +
+  // conflict banner), unchanged either way — only what wraps it differs.
+  const docBody = currentPath ? (
+    <div
+      ref={scrollHostRef}
+      className="doc-scroll-host"
+      style={{ flex: 1, overflowY: "auto", fontSize: `${zoom}em` }}
+    >
+      {showConflictBanner && (
+        <ConflictBanner
+          onKeepMine={resolveKeepMine}
+          onTakeTheirs={resolveTakeTheirs}
+          onShowBoth={resolveShowBoth}
+        />
+      )}
+      {editing ? (
+        <div className="editor-shell">
+          <Editor
+            key={`${currentPath}:${resetSeq}`}
+            initialValue={draft ?? source ?? ""}
+            onChange={handleDraftChange}
+          />
+        </div>
       ) : (
-        showTree && (
-          <aside className="pane-tree">
-            {/* isAndroid() is included here (not just isTauri()) so this
-                entry point is reachable in browser mode under the
-                `?platform=android` override — this container has no real
-                Android device, so that's the only way to drive the
-                FolderBrowser in the Playwright/Chromium test bed. In a real
-                Tauri build the two conditions never disagree: isAndroid()
-                is only ever true when isTauri() is too. */}
-            {(isTauri() || isAndroid()) && (
-              <button className="tree-item" onClick={pickRoot} style={{ marginBottom: 4 }}>
-                <FolderOpen size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />{" "}
-                {rootName ?? "Choose folder…"}
-              </button>
-            )}
-            <button
-              className="tree-item"
-              onClick={() => {
-                setNewFileError(null);
-                setNewFileOpen(true);
-              }}
-              style={{ marginBottom: 12 }}
-            >
-              <FilePlus size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} /> New file
-            </button>
-            <Favourites nodes={tree} currentPath={currentPath} onOpenFile={navigate} />
-            <Tree
-              nodes={tree}
-              currentPath={currentPath}
-              onOpen={navigate}
-              onRenameFile={handleRenameFile}
-              onDeleteFile={handleDeleteFile}
-            />
-          </aside>
+        source !== null && (
+          <Reader
+            source={source}
+            path={currentPath}
+            onLinkClick={onLinkClick}
+            onRendered={setDoc}
+            onTaskToggle={onTaskToggle}
+          />
         )
       )}
+    </div>
+  ) : (
+    <div className="empty-state">
+      {/* Files already exist (e.g. the open document was just binned, or
+          the root has content but nothing's open yet) — "choose a folder"
+          would be misleading once a root is already active. */}
+      <p>{tree.length > 0 ? "Select a file to begin" : "Choose a folder to begin"}</p>
+    </div>
+  );
 
-      <main className="pane-doc">
-        {currentPath ? (
-          <>
-            <div
-              ref={scrollHostRef}
-              className="doc-scroll-host"
-              style={{ flex: 1, overflowY: "auto", fontSize: `${zoom}em` }}
-            >
-              {showConflictBanner && (
-                <ConflictBanner
-                  onKeepMine={resolveKeepMine}
-                  onTakeTheirs={resolveTakeTheirs}
-                  onShowBoth={resolveShowBoth}
-                />
-              )}
-              {editing ? (
-                <div className="editor-shell">
-                  <Editor
-                    key={`${currentPath}:${resetSeq}`}
-                    initialValue={draft ?? source ?? ""}
-                    onChange={handleDraftChange}
-                  />
-                </div>
-              ) : (
-                source !== null && (
-                  <Reader
-                    source={source}
-                    path={currentPath}
-                    onLinkClick={onLinkClick}
-                    onRendered={setDoc}
-                    onTaskToggle={onTaskToggle}
-                  />
-                )
-              )}
-            </div>
-            <footer className="footer-chrome">
-              <span className="footer-nav">
-                <button onClick={goBack} disabled={back.length === 0} aria-label="Back">
-                  <ArrowLeft size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
-                </button>
-                <button onClick={goForward} disabled={forward.length === 0} aria-label="Forward">
-                  <ArrowRight size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
-                </button>
-                <button onClick={() => togglePane("tree")} aria-label="Toggle file tree">
-                  <PanelLeft size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
-                </button>
-              </span>
-              <span className="footer-status">
-                {editing && (
+  return (
+    <div className="shell">
+      {isMobile ? (
+        <>
+          <AppBar
+            title={fileStem}
+            path={currentPath}
+            editing={editing}
+            onOpenDrawer={openDrawer}
+            onOpenSearch={requestOpenSearch}
+            onOpenQuickSwitcher={requestOpenQuickSwitcher}
+            onToggleEditing={handleToggleEditing}
+            onOpenOverflow={openOverflowMenu}
+          />
+
+          <main className="pane-doc">{docBody}</main>
+
+          {drawerOpen && (
+            <>
+              <div className="mobile-scrim" onClick={popOverlay} data-testid="drawer-scrim" />
+              <aside className="drawer" data-testid="drawer">
+                {/* isAndroid() is included here (not just isTauri()) so this
+                    entry point is reachable in browser mode under the
+                    `?platform=android` override — see the equivalent
+                    comment this replaced in the desktop tree pane. */}
+                {(isTauri() || isAndroid()) && (
                   <button
-                    className="save-button"
-                    onClick={handleSaveNow}
-                    disabled={saveStatus !== "unsaved"}
+                    className="tree-item"
+                    onClick={() => {
+                      popOverlay();
+                      pickRoot();
+                    }}
+                    style={{ marginBottom: 4 }}
                   >
-                    Save
+                    <FolderOpen size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />{" "}
+                    {rootName ?? "Choose folder…"}
                   </button>
                 )}
-                {showZoomBriefly && zoom !== 1
-                  ? `${Math.round(zoom * 100)}%`
-                  : editing
-                    ? saveStatusText
-                    : wordCountText}
-              </span>
-              <span>
-                <button onClick={() => togglePane("toc")} aria-label="Toggle contents">
-                  <PanelRight size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
+                <button
+                  className="tree-item"
+                  onClick={() => {
+                    popOverlay();
+                    setNewFileError(null);
+                    setNewFileOpen(true);
+                  }}
+                  style={{ marginBottom: 12 }}
+                >
+                  <FilePlus size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} /> New file
                 </button>
-              </span>
-            </footer>
-          </>
-        ) : (
-          <div className="empty-state">
-            {/* Files already exist (e.g. the open document was just binned,
-                or the root has content but nothing's open yet) — "choose a
-                folder" would be misleading once a root is already active. */}
-            <p>{tree.length > 0 ? "Select a file to begin" : "Choose a folder to begin"}</p>
-          </div>
-        )}
-      </main>
+                <Favourites nodes={tree} currentPath={currentPath} onOpenFile={navigateFromOverlay} />
+                <Tree
+                  nodes={tree}
+                  currentPath={currentPath}
+                  onOpen={navigateFromOverlay}
+                  onRenameFile={handleRenameFile}
+                  onDeleteFile={handleDeleteFile}
+                />
+              </aside>
+            </>
+          )}
 
-      {showToc && (
-        <aside className="pane-toc">
-          <Toc entries={doc?.toc ?? []} />
-        </aside>
+          {tocSheetOpen && (
+            <>
+              <div className="mobile-scrim" onClick={popOverlay} data-testid="toc-sheet-scrim" />
+              {/* Toc.tsx is unmodified — a click on one of its .toc-item
+                  buttons bubbles up to this wrapper (it already ran Toc's
+                  own scrollIntoView handler first), which is all the signal
+                  needed to dismiss the sheet without threading a new prop
+                  through a component shared with desktop. */}
+              <div
+                className="toc-sheet"
+                data-testid="toc-sheet"
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest(".toc-item")) popOverlay();
+                }}
+              >
+                <div className="toc-sheet-grip" />
+                <Toc entries={doc?.toc ?? []} />
+              </div>
+            </>
+          )}
+
+          {overflowOpen && (
+            <OverflowMenu onClose={popOverlay}>
+              <button className="overflow-menu-item" onClick={openTocFromOverflow}>
+                Contents
+              </button>
+              <button
+                className="overflow-menu-item"
+                onClick={() => {
+                  popOverlay();
+                  zoomIn();
+                }}
+              >
+                Zoom In
+              </button>
+              <button
+                className="overflow-menu-item"
+                onClick={() => {
+                  popOverlay();
+                  zoomOut();
+                }}
+              >
+                Zoom Out
+              </button>
+              <button
+                className="overflow-menu-item"
+                onClick={() => {
+                  popOverlay();
+                  zoomReset();
+                }}
+              >
+                Actual Size
+              </button>
+              <button
+                className="overflow-menu-item"
+                onClick={() => {
+                  popOverlay();
+                  setNewFileError(null);
+                  setNewFileOpen(true);
+                }}
+              >
+                New File
+              </button>
+            </OverflowMenu>
+          )}
+
+          <SearchPanel open={searchOpen} onClose={closeMobileSearch} />
+        </>
+      ) : (
+        <>
+          {searchOpen ? (
+            <SearchPanel open={searchOpen} onClose={() => setSearchOpen(false)} />
+          ) : (
+            showTree && (
+              <aside className="pane-tree">
+                {/* isAndroid() is included here (not just isTauri()) so this
+                    entry point is reachable in browser mode under the
+                    `?platform=android` override — this container has no real
+                    Android device, so that's the only way to drive the
+                    FolderBrowser in the Playwright/Chromium test bed. In a real
+                    Tauri build the two conditions never disagree: isAndroid()
+                    is only ever true when isTauri() is too. */}
+                {(isTauri() || isAndroid()) && (
+                  <button className="tree-item" onClick={pickRoot} style={{ marginBottom: 4 }}>
+                    <FolderOpen size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />{" "}
+                    {rootName ?? "Choose folder…"}
+                  </button>
+                )}
+                <button
+                  className="tree-item"
+                  onClick={() => {
+                    setNewFileError(null);
+                    setNewFileOpen(true);
+                  }}
+                  style={{ marginBottom: 12 }}
+                >
+                  <FilePlus size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} /> New file
+                </button>
+                <Favourites nodes={tree} currentPath={currentPath} onOpenFile={navigate} />
+                <Tree
+                  nodes={tree}
+                  currentPath={currentPath}
+                  onOpen={navigate}
+                  onRenameFile={handleRenameFile}
+                  onDeleteFile={handleDeleteFile}
+                />
+              </aside>
+            )
+          )}
+
+          <main className="pane-doc">
+            {currentPath ? (
+              <>
+                {docBody}
+                <footer className="footer-chrome">
+                  <span className="footer-nav">
+                    <button onClick={goBack} disabled={back.length === 0} aria-label="Back">
+                      <ArrowLeft size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
+                    </button>
+                    <button onClick={goForward} disabled={forward.length === 0} aria-label="Forward">
+                      <ArrowRight size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
+                    </button>
+                    <button onClick={() => togglePane("tree")} aria-label="Toggle file tree">
+                      <PanelLeft size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
+                    </button>
+                  </span>
+                  <span className="footer-status">
+                    {editing && (
+                      <button
+                        className="save-button"
+                        onClick={handleSaveNow}
+                        disabled={saveStatus !== "unsaved"}
+                      >
+                        Save
+                      </button>
+                    )}
+                    {showZoomBriefly && zoom !== 1
+                      ? `${Math.round(zoom * 100)}%`
+                      : editing
+                        ? saveStatusText
+                        : wordCountText}
+                  </span>
+                  <span>
+                    <button onClick={() => togglePane("toc")} aria-label="Toggle contents">
+                      <PanelRight size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
+                    </button>
+                  </span>
+                </footer>
+              </>
+            ) : (
+              docBody
+            )}
+          </main>
+
+          {showToc && (
+            <aside className="pane-toc">
+              <Toc entries={doc?.toc ?? []} />
+            </aside>
+          )}
+        </>
       )}
 
       {popover?.kind === "disambiguate" && (
@@ -955,7 +1205,10 @@ export default function App() {
         </LinkPopover>
       )}
 
-      <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
+      <QuickSwitcher
+        open={quickSwitcherOpen}
+        onClose={isMobile ? closeMobileSwitcher : () => setQuickSwitcherOpen(false)}
+      />
 
       <NewFileDialog
         open={newFileOpen}

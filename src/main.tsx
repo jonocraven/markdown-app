@@ -18,6 +18,7 @@ import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/reader.css";
 import "./styles/editor.css";
+import "./styles/mobile.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

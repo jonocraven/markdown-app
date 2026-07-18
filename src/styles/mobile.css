@@ -1,0 +1,262 @@
+/* Mobile shell (PLAN-ANDROID.md §3/§6 Phase A2) — single column, touch-first.
+   Structural branching (which markup renders at all) lives in App.tsx via
+   useIsMobile() (src/hooks/useIsMobile.ts); this file is the pure-
+   presentation half, keyed off the SAME 768px breakpoint as that hook's
+   comment documents (MOBILE_BREAKPOINT_PX) — keep both in sync by hand.
+   House style throughout: mono chrome, hairline rules, one terracotta
+   accent, Jost-light headings, ≥16px text inputs (PLAN.md §6). */
+
+:root {
+  --app-bar-height: 52px;
+  --drawer-width: min(84vw, 320px);
+}
+
+/* ---- App bar ---- */
+
+.app-bar {
+  flex-shrink: 0;
+  height: var(--app-bar-height);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-bottom: var(--border-faint);
+  background: var(--paper);
+}
+
+.app-bar-btn {
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--graphite);
+  border-radius: var(--radius);
+  transition: background 0.12s var(--ease), color 0.12s var(--ease);
+}
+
+.app-bar-btn:hover,
+.app-bar-btn:active {
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.app-bar-btn.active {
+  color: var(--accent);
+}
+
+.app-bar-title-block {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.app-bar-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 17px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-bar-subtitle {
+  margin: 1px 0 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--graphite-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-bar-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* ---- Scrim (shared by the drawer and the TOC sheet) ---- */
+
+@keyframes mdreader-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.mobile-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(0, 0, 0, 0.32);
+  animation: mdreader-scrim-in 0.18s var(--ease) both;
+}
+
+/* ---- File tree drawer ---- */
+
+@keyframes mdreader-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 56;
+  width: var(--drawer-width);
+  background: var(--paper);
+  border-right: var(--border-hairline);
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  animation: mdreader-drawer-in 0.22s var(--ease) both;
+}
+
+/* ---- TOC bottom sheet ---- */
+
+@keyframes mdreader-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.toc-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 56;
+  max-height: 70vh;
+  background: var(--paper);
+  border-top: var(--border-hairline);
+  border-radius: 8px 8px 0 0;
+  padding: 10px 18px 24px;
+  overflow-y: auto;
+  animation: mdreader-sheet-in 0.22s var(--ease) both;
+}
+
+.toc-sheet-grip {
+  width: 36px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--paper-3);
+  margin: 4px auto 14px;
+}
+
+/* Bigger tap targets for TOC entries on touch — desktop's .toc-item padding
+   stays untouched; this only widens the row on mobile (44px rule). */
+.toc-sheet .toc-item {
+  padding: 10px 0;
+}
+
+/* ---- Overflow menu (⋮) ---- */
+
+@keyframes mdreader-overflow-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.overflow-menu {
+  position: fixed;
+  top: calc(var(--app-bar-height) + 6px);
+  right: 8px;
+  z-index: 57;
+  min-width: 190px;
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  background: var(--paper);
+  border: var(--border-hairline);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  padding: 6px;
+  animation: mdreader-overflow-in 0.14s var(--ease) both;
+}
+
+.overflow-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 10px;
+  min-height: 44px;
+  color: var(--ink);
+  border-radius: var(--radius);
+}
+
+.overflow-menu-item:hover,
+.overflow-menu-item:active {
+  background: var(--paper-2);
+}
+
+/* ================================================================
+   Below ~768px: pure presentation for components shared with desktop
+   (Search/QuickSwitcher takeovers). Structural mobile-only markup
+   (app bar, drawer, TOC sheet, overflow menu) needs no media query —
+   App.tsx only renders it when useIsMobile() is true.
+   ================================================================ */
+@media (max-width: 768px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .reader {
+    padding: 40px 20px 96px;
+  }
+
+  /* Search takeover: full screen instead of the desktop sidebar-width panel. */
+  .search-panel {
+    width: 100%;
+    right: 0;
+    border-right: none;
+    z-index: 58;
+  }
+
+  .search-panel-header {
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+
+  /* Quick switcher takeover: full screen, input pinned to the top for thumb
+     reach, instead of the desktop centred floating card. Animation swaps to
+     a plain fade — the desktop pop-in keyframe's translate(-50%,-50%) would
+     fight the full-screen position below. */
+  .quick-switcher {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    transform: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    animation: mdreader-fade-in 0.15s var(--ease) both;
+  }
+
+  .quick-switcher-input {
+    padding-top: max(14px, env(safe-area-inset-top));
+  }
+}
