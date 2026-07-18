@@ -152,8 +152,16 @@ fn is_markdown(path: &Path) -> bool {
     )
 }
 
+// Must be async: blocking_pick_folder() needs the OS to present the panel on
+// the main thread while this call waits for a result. A synchronous command
+// runs inline on the thread that received the IPC call (the main thread on
+// macOS), so it would be waiting on itself — a deadlock, seen as a freeze.
+// Marking the command async moves it onto Tauri's task runtime instead.
 #[tauri::command]
-pub fn pick_root(app: AppHandle, state: State<AppState>) -> Result<Option<RootInfo>, CommandError> {
+pub async fn pick_root(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<RootInfo>, CommandError> {
     let Some(folder) = app.dialog().file().blocking_pick_folder() else {
         return Ok(None);
     };
