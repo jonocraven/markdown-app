@@ -1,0 +1,38 @@
+/* Folio design tokens — Monochrome (PLAN.md §6). The single source of truth. */
+
+:root {
+  /* Type families */
+  --font-display: "Jost", system-ui, sans-serif;
+  --font-serif: "Lora", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Paper and ink */
+  --paper: #fafadf;
+  --paper-2: #f2f2d2;
+  --paper-3: #f5f0e4;
+  --ink: #1a1a16;
+  --graphite: #5e5e54;
+  --graphite-light: #8a8a80;
+
+  /* Scale (~1.25) */
+  --size-h1: 40px;
+  --size-h2: 25px;
+  --size-h3: 20px;
+  --size-body: 16px;
+  --size-small: 12.5px;
+
+  /* Craft */
+  --radius: 2px;
+  --border-hairline: 1px solid var(--ink);
+  --border-faint: 1px solid color-mix(in srgb, var(--ink) 18%, transparent);
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur: 0.5s;
+  --stagger: 60ms;
+
+  /* Layout */
+  --reading-width: 70ch;
+  --pane-tree-width: 240px;
+  --pane-toc-width: 220px;
+}

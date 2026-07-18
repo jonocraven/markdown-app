@@ -1,0 +1,158 @@
+/* App chrome and layout. The document itself is styled in reader.css. */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: var(--size-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+:focus-visible {
+  outline: 1px solid var(--ink);
+  outline-offset: 2px;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* ---- Three-pane shell ---- */
+
+.shell {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pane-tree {
+  width: var(--pane-tree-width);
+  flex-shrink: 0;
+  border-right: var(--border-faint);
+  overflow-y: auto;
+  padding: 20px 14px;
+}
+
+.pane-doc {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.pane-toc {
+  width: var(--pane-toc-width);
+  flex-shrink: 0;
+  border-left: var(--border-faint);
+  overflow-y: auto;
+  padding: 20px 16px;
+}
+
+/* Chrome recedes: mono, small, graphite, uppercase labels. */
+.chrome {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite);
+}
+
+.chrome-label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 10.5px;
+  color: var(--graphite-light);
+  margin: 0 0 10px;
+}
+
+.footer-chrome {
+  flex-shrink: 0;
+  border-top: var(--border-faint);
+  padding: 6px 24px;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite-light);
+}
+
+/* ---- Tree ---- */
+
+.tree-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 3px 6px;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-item:hover {
+  background: var(--paper-2);
+}
+
+.tree-item[aria-current="true"] {
+  color: var(--ink);
+  background: var(--paper-2);
+}
+
+/* ---- TOC ---- */
+
+.toc-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 2px 0;
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toc-item:hover {
+  color: var(--ink);
+}
+
+.toc-depth-3 {
+  padding-left: 14px;
+}
+
+.toc-depth-4 {
+  padding-left: 28px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,0 +1,398 @@
+/* The rendered document — the product. Printed page, not a screen. */
+
+.reader {
+  max-width: var(--reading-width);
+  margin: 0 auto;
+  padding: 56px 32px 120px;
+  font-family: var(--font-serif);
+  font-size: var(--size-body);
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+/* Entrance: one staggered fade-up per block, disabled under reduced motion
+   (blanket rule in base.css). Delay is set inline per block by Reader. */
+@keyframes folio-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.reader.animate > * {
+  animation: folio-fade-up var(--dur) var(--ease) both;
+}
+
+/* ---- Document head ---- */
+
+.doc-path {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--graphite-light);
+  margin: 0 0 14px;
+}
+
+.frontmatter {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite);
+  border: var(--border-faint);
+  border-radius: var(--radius);
+  background: var(--paper-3);
+  margin: 0 0 28px;
+}
+
+.frontmatter summary {
+  padding: 6px 10px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 10.5px;
+  color: var(--graphite-light);
+  list-style: none;
+}
+
+.frontmatter summary::-webkit-details-marker {
+  display: none;
+}
+
+.frontmatter dl {
+  margin: 0;
+  padding: 4px 10px 10px;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 16px;
+}
+
+.frontmatter dt {
+  color: var(--graphite-light);
+}
+
+.frontmatter dd {
+  margin: 0;
+}
+
+/* ---- Headings: Jost, light, never bold; hairline rules under h1/h2 ---- */
+
+.reader h1,
+.reader h2,
+.reader h3,
+.reader h4,
+.reader h5,
+.reader h6 {
+  font-family: var(--font-display);
+  font-weight: 300;
+  line-height: 1.2;
+  margin: 1.6em 0 0.5em;
+}
+
+.reader h1 {
+  font-size: var(--size-h1);
+  font-weight: 200;
+  margin-top: 0.4em;
+  padding-bottom: 0.3em;
+  border-bottom: var(--border-hairline);
+}
+
+.reader h2 {
+  font-size: var(--size-h2);
+  padding-bottom: 0.25em;
+  border-bottom: var(--border-faint);
+}
+
+.reader h3 {
+  font-size: var(--size-h3);
+}
+
+.reader h4,
+.reader h5,
+.reader h6 {
+  font-size: var(--size-body);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+/* ---- Body ---- */
+
+.reader p {
+  margin: 0 0 1em;
+}
+
+.reader a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.reader a:hover {
+  background: var(--paper-2);
+}
+
+.reader a.broken-link {
+  color: var(--graphite);
+  text-decoration-style: dashed;
+}
+
+.reader a.external-link {
+  text-decoration-style: dotted;
+}
+
+.reader hr {
+  border: none;
+  border-top: var(--border-hairline);
+  margin: 2.5em auto;
+  width: 38%;
+}
+
+.reader img {
+  max-width: 100%;
+  border-radius: var(--radius);
+}
+
+.reader blockquote {
+  margin: 1.4em 0;
+  padding: 0 0 0 1.2em;
+  border-left: var(--border-hairline);
+  font-style: italic;
+  color: var(--graphite);
+}
+
+.reader blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* ---- Lists and task lists ---- */
+
+.reader ul,
+.reader ol {
+  padding-left: 1.5em;
+  margin: 0 0 1em;
+}
+
+.reader li {
+  margin: 0.2em 0;
+}
+
+.reader li.task-list-item {
+  list-style: none;
+  margin-left: -1.5em;
+}
+
+.reader input[type="checkbox"] {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border: var(--border-hairline);
+  border-radius: var(--radius);
+  background: var(--paper);
+  vertical-align: -1px;
+  margin-right: 0.55em;
+  cursor: pointer;
+  position: relative;
+}
+
+.reader input[type="checkbox"]:checked {
+  background: var(--ink);
+}
+
+.reader input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  inset: 2px 3px 4px 3px;
+  border: solid var(--paper);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(40deg);
+}
+
+/* ---- Tables: hairline rules only, no zebra ---- */
+
+.reader table {
+  border-collapse: collapse;
+  margin: 1.5em 0;
+  width: 100%;
+  font-size: 15px;
+}
+
+.reader th {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-align: left;
+  letter-spacing: 0.03em;
+  border-top: var(--border-hairline);
+  border-bottom: var(--border-hairline);
+  padding: 8px 12px 8px 0;
+}
+
+.reader td {
+  padding: 7px 12px 7px 0;
+  vertical-align: top;
+}
+
+.reader tbody tr:last-child td {
+  border-bottom: var(--border-hairline);
+}
+
+.reader td[align="right"],
+.reader th[align="right"] {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  text-align: right;
+}
+
+/* ---- Code ---- */
+
+.reader :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--paper-3);
+  border: var(--border-faint);
+  border-radius: var(--radius);
+  padding: 1px 4px;
+}
+
+.code-block {
+  position: relative;
+  margin: 1.5em 0;
+}
+
+.code-block pre {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  line-height: 1.6;
+  background: var(--paper-3) !important;
+  border: var(--border-faint);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.code-block pre code {
+  font-family: inherit;
+}
+
+.code-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--graphite-light);
+  background: var(--paper-3);
+  padding: 3px 7px;
+  border-radius: var(--radius);
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+}
+
+.code-block:hover .code-copy,
+.code-copy:focus-visible {
+  opacity: 1;
+}
+
+.code-copy:hover {
+  color: var(--ink);
+}
+
+/* ---- Callouts: no colour; mono label, hairline border, paper fills ---- */
+
+.callout {
+  border: var(--border-faint);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  padding: 12px 16px;
+  margin: 1.5em 0;
+}
+
+.callout-title {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--graphite);
+  margin: 0 0 6px;
+}
+
+.callout p:last-child {
+  margin-bottom: 0;
+}
+
+.callout[data-callout="important"] {
+  background: var(--paper-3);
+}
+
+.callout[data-callout="warning"],
+.callout[data-callout="caution"] {
+  border: var(--border-hairline);
+  background: var(--paper-3);
+}
+
+.callout[data-callout="warning"] .callout-title,
+.callout[data-callout="caution"] .callout-title {
+  color: var(--ink);
+}
+
+/* ---- Footnotes ---- */
+
+.reader section.footnotes {
+  margin-top: 3em;
+  border-top: var(--border-faint);
+  font-size: 14px;
+  color: var(--graphite);
+}
+
+.reader section.footnotes :is(h2, h3) {
+  display: none;
+}
+
+/* ---- Maths ---- */
+
+.reader .katex-display {
+  margin: 1.5em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* ---- Mermaid ---- */
+
+.mermaid-block {
+  margin: 1.5em 0;
+  text-align: center;
+}
+
+.mermaid-block svg {
+  max-width: 100%;
+}
+
+/* ---- Print: ⌘P should produce a beautiful PDF for free ---- */
+
+@media print {
+  .pane-tree,
+  .pane-toc,
+  .footer-chrome,
+  .code-copy {
+    display: none !important;
+  }
+
+  .pane-doc {
+    overflow: visible;
+  }
+
+  .reader {
+    padding: 0;
+    max-width: none;
+  }
+
+  .reader.animate > * {
+    animation: none !important;
+  }
+}
