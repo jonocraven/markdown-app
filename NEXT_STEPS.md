@@ -165,8 +165,9 @@ each step assumes the previous ones passed.
    (not copied) and that any open document/history reference follows it.
    Move a file to the bin and confirm it actually lands in the macOS Trash
    (recoverable), not permanently deleted.
-8. **Print → PDF.** `⌘P` (or File > Print… from the menu — now wired to the
-   OS print dialog via `window.print()`) against `torture-test.md`. Compare
+8. **Print → PDF.** `⌘P` (or File > Print… from the menu — now wired natively
+   in Rust via `WebviewWindow::print()`, since `window.print()` doesn't work
+   on macOS WKWebView) against `torture-test.md`. Compare
    the resulting PDF against the
    `print-page-*.png` renders from this session — look for the same things:
    no chrome, no broken code blocks, headings not orphaned, black-on-white,

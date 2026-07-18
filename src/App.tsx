@@ -570,11 +570,12 @@ export default function App() {
 
   // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save, ⇧⌘F
   // search, ⌘K quick switcher. Both Cmd (macOS) and Ctrl (testing) work.
-  // Deliberately NOT bound: ⌘P — unlike a real browser tab, WKWebView has no
-  // built-in "⌘P prints" behaviour of its own to preserve; it only works via
-  // the native File > Print… menu item's accelerator (see build_menu in
-  // lib.rs) firing the "print" case in the menu-event listener below, which
-  // calls window.print(). Binding ⌘P here too would double-fire it.
+  // Deliberately NOT bound: ⌘P — it's owned entirely by the native File >
+  // Print… menu item (see build_menu/on_menu_event in lib.rs), which calls
+  // Rust's WebviewWindow::print() directly and never reaches this frontend
+  // at all. That's not a stylistic choice: on macOS, WKWebView's JS
+  // `window.print()` is a documented dead end (unlike Linux/Windows), so
+  // there is no working frontend-side print path to bind here.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -674,9 +675,6 @@ export default function App() {
           case "new-file":
             setNewFileError(null);
             setNewFileOpen(true);
-            break;
-          case "print":
-            window.print();
             break;
           default:
             break;

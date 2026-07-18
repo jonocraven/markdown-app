@@ -21,9 +21,10 @@ use tauri::{AppHandle, Wry};
 ///
 /// Print specifically: there is no OS-level "⌘P prints the frontmost
 /// window" behaviour to preserve here — WKWebView doesn't bind it itself,
-/// unlike a real browser tab. It only works because this menu item claims
-/// the accelerator and App.tsx's onMenuEvent calls `window.print()` when it
-/// fires (see the "print" case below).
+/// unlike a real browser tab. This menu item claims the accelerator and
+/// its click is handled natively in `on_menu_event` below via
+/// `WebviewWindow::print()`, NOT relayed to the frontend — `window.print()`
+/// from JS does not work on macOS WKWebView (see the on_menu_event comment).
 #[cfg(desktop)]
 fn build_menu(app: &AppHandle<Wry>) -> tauri::Result<Menu<Wry>> {
     let about = AboutMetadataBuilder::new()
@@ -139,8 +140,21 @@ pub fn run() {
     // keyboard shortcuts already trigger. Predefined items (about/quit/
     // undo/redo/cut/copy/paste/select-all/window controls) are handled
     // natively by the OS and never reach this handler.
+    //
+    // "print" is handled here instead, natively, and never reaches the
+    // frontend: on macOS, WKWebView's `window.print()` is a documented dead
+    // end (wry's own docs: "window.print() works on all platforms" is true
+    // everywhere except macOS, which is exactly why `Webview::print()`
+    // exists as a separate Rust-side call). Calling it here uses the real
+    // native print path instead of the JS one that silently does nothing.
     #[cfg(desktop)]
     let builder = builder.on_menu_event(|app, event| {
+        if event.id().as_ref() == "print" {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.print();
+            }
+            return;
+        }
         let _ = app.emit("menu", event.id().as_ref());
     });
 
