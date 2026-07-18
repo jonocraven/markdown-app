@@ -5,7 +5,7 @@ Folio is a local-first markdown viewer and light editor for macOS. It renders ma
 ## Features
 
 - **Full-featured rendering:** GFM (tables, task lists, strikethrough, autolinks, footnotes), fenced code with syntax highlighting, LaTeX maths, Mermaid diagrams, GitHub-style callouts (note/warning/tip/important/caution), images
-- **Reader-first design:** Opens in reading mode; ⌘E toggles a lightweight source editor; search and navigate with ⌘P (quick open) and ⇧⌘F (full-text search)
+- **Reader-first design:** Opens in reading mode; ⌘E toggles a lightweight source editor; search and navigate with ⌘K (quick open) and ⇧⌘F (full-text search)
 - **Links as navigation:** Click relative markdown links (`[file](./other.md)`), Obsidian-style wikilinks (`[[title]]`), or anchors to jump between files; ⌘[ and ⌘] navigate browser-style history
 - **Live reload:** Edit a file in another app — or sync via Google Drive — and watch the viewer refresh within a second
 - **Interactive checkboxes:** Tick task lists in the reader; the change persists to disk immediately

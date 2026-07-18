@@ -4,6 +4,8 @@
 
 This document is written to be handed directly to Claude Code. It contains the product spec, the technical architecture, the design direction with exact tokens, a phased build plan with per-phase model assignments, and acceptance criteria. Work one phase per session where possible.
 
+**Correction (post-v1, on-device testing):** this original spec bound the quick switcher to `⌘P` while separately expecting `⌘P` to trigger printing — a self-contradiction. `⌘P` is native system Print and must never be intercepted by app code; the quick switcher is bound to **`⌘K`** instead everywhere below.
+
 ---
 
 ## 1. Product overview
@@ -66,7 +68,7 @@ Two clean halves connected by Tauri IPC commands:
 - `App` — three-pane layout: file tree (collapsible sidebar, left), document (centre), TOC (collapsible, right). Persist pane visibility and widths.
 - `Reader` — the rendered document. This component is the product; see §6.
 - `Editor` — CodeMirror 6, mounted when ⌘E toggles edit mode. Same document width and theme family as the reader so the mode switch feels like turning the page over, not changing apps.
-- `Tree`, `Toc`, `SearchPanel` (⇧⌘F), `QuickSwitcher` (⌘P, fuzzy filename match against the link index).
+- `Tree`, `Toc`, `SearchPanel` (⇧⌘F), `QuickSwitcher` (⌘K, fuzzy filename match against the link index).
 - `historyStore` — simple back/forward stack (⌘[ / ⌘]) for in-app link navigation.
 - State: Zustand or plain React context — keep it boring. No router needed; "navigation" is just setting the current file path.
 
@@ -82,7 +84,7 @@ Frontmatter: parse YAML frontmatter, hide it from the rendered body, and show it
 
 **Linking:** see §5.
 
-**Navigation:** file tree sidebar with remembered expansion state; TOC panel; ⌘P quick switcher; ⇧⌘F full-text search with grouped-by-file results and click-to-open-at-line; back/forward history; drag-a-file-onto-the-app and "Open With → Folio" from Finder both work (register the app as an editor for `.md` in `Info.plist` via Tauri config).
+**Navigation:** file tree sidebar with remembered expansion state; TOC panel; ⌘K quick switcher; ⇧⌘F full-text search with grouped-by-file results and click-to-open-at-line; back/forward history; drag-a-file-onto-the-app and "Open With → Folio" from Finder both work (register the app as an editor for `.md` in `Info.plist` via Tauri config).
 
 **Files:** create new file (⌘N, prompts for name + folder), rename, delete-to-trash from the tree's context menu. Nothing fancier.
 
@@ -156,8 +158,8 @@ Relative-link resolution, the wikilink remark plugin, link index, click routing,
 CodeMirror 6 with markdown mode themed to match; ⌘E toggle preserving scroll position roughly across modes; ⌘S + idle autosave through `write_file`; conflict banner; live checkbox write-back in Reader now real.
 ✓ Kill-test: edit, force an external change, confirm the conflict banner appears and no data is lost either way. ✓ Ticking a checkbox in Reader updates the file on disk.
 
-**Phase 5 — Search + quick switcher** · *Sonnet 4.6 (Rust search command); Haiku 4.5 (results panel + ⌘P UI against the existing index)*
-⇧⌘F panel, grouped hits, open-at-line (scroll + brief highlight); ⌘P fuzzy switcher.
+**Phase 5 — Search + quick switcher** · *Sonnet 4.6 (Rust search command); Haiku 4.5 (results panel + ⌘K UI against the existing index)*
+⇧⌘F panel, grouped hits, open-at-line (scroll + brief highlight); ⌘K fuzzy switcher.
 ✓ Search a 500-file root in well under a second; opening a hit lands on the right line.
 
 **Phase 6 — Polish + packaging** · *Haiku 4.5 for chores (icon wiring, About window, README, menu items); Sonnet 4.6 for the print stylesheet and a final anti-pattern/gotcha audit against §6*

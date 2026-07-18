@@ -42,7 +42,9 @@ verification pass, written to run once on the Mac before shipping.*
 - **Search + quick switcher (Phase 5).** The `search` Rust command (ripgrep
   internals, regex-with-literal-fallback, capped at 500 hits), the `⇧⌘F`
   panel (grouped-by-file results, scroll-to-line with a brief pulse), the
-  `⌘P` fuzzy quick switcher.
+  `⌘K` fuzzy quick switcher (rebound from an original, self-contradicting
+  `⌘P` — see PLAN.md's correction note — after on-device testing found ⌘P
+  intercepted the OS's native Print shortcut).
 - **Polish + packaging (Phase 6, this session).**
   - **Native menu bar** — `src-tauri/src/lib.rs`'s `build_menu`: App (Folio)
     menu with About (name "Folio", copyright "© 2026") and the predefined

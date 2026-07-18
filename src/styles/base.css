@@ -96,6 +96,32 @@ button {
   color: var(--graphite-light);
 }
 
+.footer-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.save-button {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: var(--border-faint);
+  border-radius: var(--radius);
+  padding: 2px 10px;
+  color: var(--ink);
+}
+
+.save-button:hover:not(:disabled) {
+  background: var(--paper-2);
+}
+
+.save-button:disabled {
+  color: var(--graphite-light);
+  cursor: default;
+}
+
 /* ---- Tree ---- */
 
 .tree-item {

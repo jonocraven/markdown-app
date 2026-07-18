@@ -543,8 +543,10 @@ export default function App() {
     if (!useAppStore.getState().editing) setEditing(true);
   }, [conflict, cancelAutosave, setEditing]);
 
-  // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save, ⇧⌘F search, ⌘P quick switcher.
-  // Both Cmd (macOS) and Ctrl (testing) work.
+  // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save, ⇧⌘F
+  // search, ⌘K quick switcher. Both Cmd (macOS) and Ctrl (testing) work.
+  // Deliberately NOT bound: ⌘P — left free for the system's native Print,
+  // since a preventDefault()'d ⌘P here would block ⌘P from ever printing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -559,8 +561,8 @@ export default function App() {
         target instanceof HTMLTextAreaElement;
 
       if (isTextInput) {
-        // Allow ⌘P and ⇧⌘F to open panels even from text inputs, block everything else
-        const isSearchOrSwitcher = (e.key.toLowerCase() === "p") || (e.key.toLowerCase() === "f" && e.shiftKey);
+        // Allow ⌘K and ⇧⌘F to open panels even from text inputs, block everything else
+        const isSearchOrSwitcher = (e.key.toLowerCase() === "k") || (e.key.toLowerCase() === "f" && e.shiftKey);
         if (!isSearchOrSwitcher) return;
       }
 
@@ -582,8 +584,8 @@ export default function App() {
       } else if (e.key.toLowerCase() === "s") {
         e.preventDefault();
         handleSaveNow();
-      } else if (e.key.toLowerCase() === "p") {
-        // ⌘P / Ctrl+P: quick switcher
+      } else if (e.key.toLowerCase() === "k") {
+        // ⌘K / Ctrl+K: quick switcher
         e.preventDefault();
         setQuickSwitcherOpen(true);
       } else if (e.key.toLowerCase() === "f" && e.shiftKey) {
@@ -759,7 +761,16 @@ export default function App() {
                   <PanelLeft size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
                 </button>
               </span>
-              <span>
+              <span className="footer-status">
+                {editing && (
+                  <button
+                    className="save-button"
+                    onClick={handleSaveNow}
+                    disabled={saveStatus !== "unsaved"}
+                  >
+                    Save
+                  </button>
+                )}
                 {showZoomBriefly && zoom !== 1
                   ? `${Math.round(zoom * 100)}%`
                   : editing
