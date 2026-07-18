@@ -31,6 +31,8 @@ interface AppState {
   navigate: (path: string) => void;
   goBack: () => void;
   goForward: () => void;
+  renamePath: (oldPath: string, newPath: string) => void;
+  removePath: (path: string) => void;
   toggleEditing: () => void;
   setEditing: (editing: boolean) => void;
   togglePane: (pane: "tree" | "toc") => void;
@@ -89,6 +91,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       editing: false,
     });
   },
+
+  // File-ops housekeeping (PLAN.md §4/§7 Phase 6): a rename/delete never
+  // pushes history — it fixes up currentPath and the existing back/forward
+  // stacks in place so ⌘[/⌘] keep working across the change.
+  renamePath: (oldPath, newPath) =>
+    set((s) => ({
+      currentPath: s.currentPath === oldPath ? newPath : s.currentPath,
+      back: s.back.map((p) => (p === oldPath ? newPath : p)),
+      forward: s.forward.map((p) => (p === oldPath ? newPath : p)),
+    })),
+
+  removePath: (path) =>
+    set((s) => ({
+      currentPath: s.currentPath === path ? null : s.currentPath,
+      back: s.back.filter((p) => p !== path),
+      forward: s.forward.filter((p) => p !== path),
+    })),
 
   toggleEditing: () => set((s) => ({ editing: !s.editing })),
   setEditing: (editing) => set({ editing }),

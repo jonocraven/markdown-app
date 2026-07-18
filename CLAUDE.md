@@ -1,9 +1,11 @@
 # Folio — markdown viewer/editor (Tauri 2 + React + TS)
-Read PLAN.md before any work. Current phase: Phase 6 (polish + packaging) in progress.
-✓ App icon: cream/ink monogram designed, icon set generated, bundle.icon configured.
-✗ Native menu bar: deferred (Tauri 2 menu API complexity); menu structure designed.
-✓ README.md written; all four regression scripts pass. Next: native menu on Mac, print
-stylesheet audit, tauri build → signed .dmg.
+Read PLAN.md before any work. Current phase: Phase 6 (polish + packaging) COMPLETE
+pending Mac verification — see NEXT_STEPS.md for the pre-ship checklist.
+✓ App icon, native menu bar (App/File/Edit/View/Go/Window + About), print stylesheet,
+file ops (create/rename/delete-to-bin), README all built and verified in this
+container (cargo check/clippy clean, all 5 regression scripts pass). Nothing left to
+build — what remains is verifying it all on a real Mac (WKWebView, a real window, a
+real filesystem) before `tauri build`.
 
 ## Rules
 - Viewer-first. The Reader's typography is the product; never regress it.

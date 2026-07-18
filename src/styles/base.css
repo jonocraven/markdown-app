@@ -482,3 +482,79 @@ button {
   color: var(--graphite-light);
   text-align: center;
 }
+
+/* ---- New file dialog (⌘N / menu) ---- */
+
+.new-file-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 360px;
+  z-index: 50;
+  background: var(--paper);
+  border: var(--border-hairline);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.15);
+  padding: 16px;
+}
+
+.new-file-input {
+  display: block;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  padding: 8px 10px;
+  border: var(--border-hairline);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+
+.new-file-input::placeholder {
+  color: var(--graphite-light);
+}
+
+.new-file-input:focus {
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.new-file-destination {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite);
+  margin: 0 0 14px;
+}
+
+.new-file-error {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--ink);
+  background: var(--paper-3);
+  border: var(--border-faint);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  margin: 0 0 14px;
+}
+
+/* ---- Tree row rename input (right-click → Rename) ---- */
+
+.tree-rename-input {
+  display: block;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  padding: 2px 6px;
+  border: var(--border-hairline);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.tree-rename-input:focus {
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
+}

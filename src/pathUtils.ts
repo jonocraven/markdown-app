@@ -48,3 +48,12 @@ export function dirDistance(a: string, b: string): number {
 export function normalizeStem(text: string): string {
   return text.trim().toLowerCase().replace(/[-_\s]+/g, " ");
 }
+
+/** Turn user-typed input (the new-file dialog, the tree's rename input)
+ * into a safe single path segment: strips slashes (a name is for one
+ * folder, not an arbitrary subpath), drops a markdown extension the user
+ * may have typed so it isn't doubled, then appends `ext`. */
+export function sanitizeFileName(input: string, ext = ".md"): string {
+  const stripped = input.trim().replace(/[/\\]+/g, "-").replace(/\.(md|markdown)$/i, "");
+  return `${stripped}${ext}`;
+}

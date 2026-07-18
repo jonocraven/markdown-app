@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 interface LinkPopoverProps {
   x: number;
   y: number;
-  kind: "disambiguate" | "create";
+  /** Only used for the data-popover-kind test hook; styling is identical
+   * for every kind. "disambiguate"/"create" are the wikilink-routing
+   * popovers (PLAN.md §5); "tree-menu"/"tree-delete-confirm" are the file
+   * tree's right-click context menu (PLAN.md §4/§7 Phase 6). */
+  kind: "disambiguate" | "create" | "tree-menu" | "tree-delete-confirm";
   onClose: () => void;
   children: ReactNode;
 }

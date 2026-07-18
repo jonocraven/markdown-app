@@ -51,9 +51,17 @@ export const ipc = {
   readFile: (path: string) => invoke<FileContent>("read_file", { path }),
   writeFile: (path: string, content: string, expectedMtimeMs: number) =>
     invoke<FileContent>("write_file", { path, content, expectedMtimeMs }),
+  createFile: (path: string) => invoke<FileContent>("create_file", { path }),
+  renameFile: (from: string, to: string) => invoke<void>("rename_file", { from, to }),
+  deleteFile: (path: string) => invoke<void>("delete_file", { path }),
   search: (query: string) => invoke<SearchHit[]>("search", { query }),
   buildLinkIndex: () => invoke<LinkIndexEntry[]>("build_link_index"),
   watchRoot: () => invoke<void>("watch_root"),
   onFsChanged: (handler: (change: FsChange) => void): Promise<UnlistenFn> =>
     listen<FsChange>("fs-changed", (event) => handler(event.payload)),
+  /** Native menu bar clicks — see src-tauri/src/lib.rs's on_menu_event,
+   * which relays every custom item's id verbatim (predefined items like
+   * about/quit/undo/redo are handled natively and never reach here). */
+  onMenuEvent: (handler: (id: string) => void): Promise<UnlistenFn> =>
+    listen<string>("menu", (event) => handler(event.payload)),
 };

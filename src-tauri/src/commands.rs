@@ -258,6 +258,23 @@ pub fn read_file(state: State<AppState>, path: String) -> Result<FileContent, Co
     })
 }
 
+/// Atomic write shared by every command that puts bytes on disk: write to a
+/// temp file in the same directory, then rename over the target. Rename is
+/// atomic on the same filesystem, so a reader (or Drive sync) never sees a
+/// half-written file. This is the ONLY place that touches a file for
+/// writing — write_file and create_file both funnel through it.
+fn atomic_write(abs: &Path, content: &str) -> Result<(), CommandError> {
+    let dir = abs.parent().ok_or(CommandError::OutsideRoot)?;
+    let file_name = abs
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let tmp = dir.join(format!(".{file_name}.folio-tmp"));
+    std::fs::write(&tmp, content)?;
+    std::fs::rename(&tmp, abs)?;
+    Ok(())
+}
+
 /// Atomic, conflict-checked write: refuse if the file's mtime moved since
 /// it was read (Drive sync can replace files mid-edit), then write to a
 /// temp file in the same directory and rename over the original.
@@ -279,20 +296,92 @@ pub fn write_file(
         }
     }
 
-    let dir = abs.parent().ok_or(CommandError::OutsideRoot)?;
-    let file_name = abs
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
-    let tmp = dir.join(format!(".{file_name}.folio-tmp"));
-    std::fs::write(&tmp, &content)?;
-    std::fs::rename(&tmp, &abs)?;
+    atomic_write(&abs, &content)?;
 
     let meta = std::fs::metadata(&abs)?;
     Ok(FileContent {
         content,
         mtime_ms: mtime_ms(&meta),
     })
+}
+
+/// Create a new file with a minimal `# Title` heading derived from the
+/// filename stem. Refuses if the target already exists (Io error) — this is
+/// the new-file flow, never an overwrite. Parent directories inside the
+/// root are created as needed (e.g. creating `notes/today.md` when `notes/`
+/// doesn't exist yet). Goes through the same atomic_write helper as
+/// write_file — there is only ever one write path.
+#[tauri::command]
+pub fn create_file(state: State<AppState>, path: String) -> Result<FileContent, CommandError> {
+    let (_root, abs) = resolve(&state, &path)?;
+
+    if abs.exists() {
+        return Err(CommandError::Io {
+            message: format!("{path} already exists"),
+        });
+    }
+
+    if let Some(dir) = abs.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+
+    let stem = abs
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| "Untitled".to_string());
+    let content = format!("# {stem}\n");
+
+    atomic_write(&abs, &content)?;
+
+    let meta = std::fs::metadata(&abs)?;
+    Ok(FileContent {
+        content,
+        mtime_ms: mtime_ms(&meta),
+    })
+}
+
+/// Rename/move a file within the root. Refuses if the target already
+/// exists or either path escapes the root (both go through `resolve`).
+#[tauri::command]
+pub fn rename_file(state: State<AppState>, from: String, to: String) -> Result<(), CommandError> {
+    let (_root, abs_from) = resolve(&state, &from)?;
+    let (_root2, abs_to) = resolve(&state, &to)?;
+
+    if !abs_from.exists() {
+        return Err(CommandError::Io {
+            message: format!("{from} does not exist"),
+        });
+    }
+    if abs_to.exists() {
+        return Err(CommandError::Io {
+            message: format!("{to} already exists"),
+        });
+    }
+
+    if let Some(dir) = abs_to.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+
+    std::fs::rename(&abs_from, &abs_to)?;
+    Ok(())
+}
+
+/// Move a file to the system trash/bin rather than deleting it outright —
+/// mistakes should be recoverable from Finder's Bin, not gone forever.
+#[tauri::command]
+pub fn delete_file(state: State<AppState>, path: String) -> Result<(), CommandError> {
+    let (_root, abs) = resolve(&state, &path)?;
+
+    if !abs.exists() {
+        return Err(CommandError::Io {
+            message: format!("{path} does not exist"),
+        });
+    }
+
+    trash::delete(&abs).map_err(|e| CommandError::Io {
+        message: e.to_string(),
+    })?;
+    Ok(())
 }
 
 /// Watch the root and emit debounced `fs-changed` events. Replaces any

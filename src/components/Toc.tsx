@@ -23,28 +23,28 @@ export function Toc({ entries }: TocProps) {
       }
     });
 
-    // Determine which heading is most in-view
+    // The active heading is the LAST one that has scrolled up to (or past)
+    // a line near the top of the viewport — i.e. the heading whose section
+    // we're currently reading. Pick the heading with the greatest top
+    // that's still at or above the threshold (not the smallest/most
+    // negative — an earlier version scored by "distance past the
+    // threshold" unbounded, which made a heading that had scrolled far off
+    // the top of the page always win over the true current section).
     const updateActive = () => {
+      const threshold = window.innerHeight * 0.35;
       let bestId: string | null = null;
-      let bestRatio = -1;
+      let bestTop = -Infinity;
 
       headingRefs.current.forEach((el, id) => {
-        const rect = el.getBoundingClientRect();
-        // Calculate visibility: how much of the element is in the top half of viewport
-        const viewportHeight = window.innerHeight;
-        const elementTop = rect.top;
-
-        // A heading is "in view" if its top is above the middle of the viewport
-        if (elementTop < viewportHeight / 2) {
-          // Calculate a ratio based on how close the top is to the middle
-          const ratio = Math.max(0, 1 - elementTop / (viewportHeight / 2));
-          if (ratio > bestRatio) {
-            bestRatio = ratio;
-            bestId = id;
-          }
+        const top = el.getBoundingClientRect().top;
+        if (top <= threshold && top > bestTop) {
+          bestTop = top;
+          bestId = id;
         }
       });
 
+      // Above the first heading (top of document): nothing has crossed the
+      // threshold yet, so nothing is active rather than falsely sticking.
       setActiveId(bestId);
     };
 

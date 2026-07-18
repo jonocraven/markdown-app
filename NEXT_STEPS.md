@@ -1,107 +1,188 @@
 # Folio — handoff and next steps
 
-*Written at the end of the scaffold session (July 2026). Read PLAN.md first; this file says what already exists, what is unverified, and which model runs which task from here.*
+*Written at the end of Phase 6 (Session F, July 2026). Read PLAN.md first. Every
+feature in the v1 spec (§4) is now built and verified as far as this Linux
+container can verify it — full unified rendering pipeline, root/tree/watch,
+links + history, editor + conflict-safe writes, search + quick switcher, file
+ops (create/rename/delete-to-bin), the native menu bar, and the print
+stylesheet. What's left is entirely Mac-side verification (WKWebView, a real
+window, a real filesystem, a real build) — the single checklist below is that
+verification pass, written to run once on the Mac before shipping.*
 
-## What is already built
+## What was built, all sessions
 
-The hard, architecture-shaping work is done:
+- **Scaffold (Session A/Phase 0).** Tauri 2 + React 18 + TS + Vite, plugins
+  (dialog, store, fs, persisted-scope, opener), fonts bundled locally
+  (Fontsource — offline-safe), design tokens as CSS custom properties, the
+  three-pane Monochrome shell, macOS `.md` file association declared in
+  `tauri.conf.json`.
+- **Rendering pipeline (Phase 1).** The full unified pipeline in `src/markdown/`
+  — GFM, frontmatter (collapsed metadata block), KaTeX, Shiki (curated
+  language set, lazy extras, `mermaid` fences skipped and handled separately),
+  monochrome callouts, the wikilink remark plugin, staggered fade-up entrance
+  (honouring reduced motion), lazily-loaded Mermaid themed to the tokens, TOC
+  extraction with scroll-spy, word count, code copy buttons, interactive
+  checkbox stubs.
+- **Root, tree, watch (Phase 2).** `pick_root`/`current_root` (persisted via
+  `tauri-plugin-store`, restored on launch), `read_tree` (gitignore-aware,
+  markdown-only, parent-pointer flat list), `read_file`, the debounced
+  `watch_root` → `fs-changed` events, the tree sidebar with persisted
+  expansion state.
+- **Links + history (Phase 3).** Relative-link and wikilink resolution
+  (`src/linkRouter.ts`, `src/pathUtils.ts`), anchor scrolling, disambiguation
+  and broken-wikilink-create popovers (`src/components/LinkPopover.tsx`),
+  back/forward history (`⌘[`/`⌘]`), a 10-file linked sample vault
+  (`samples/`) that doubles as the permanent rendering + link-routing
+  regression fixture.
+- **Editor + safe writes (Phase 4).** CodeMirror 6 (`src/components/Editor.tsx`),
+  `⌘E` toggle with scroll-fraction preservation, `⌘S` + 2s idle autosave, the
+  atomic conflict-checked write path (`write_file`: temp-file + rename,
+  refuses on mtime mismatch), the non-modal conflict banner (keep
+  mine/take theirs/show both), real checkbox write-back.
+- **Search + quick switcher (Phase 5).** The `search` Rust command (ripgrep
+  internals, regex-with-literal-fallback, capped at 500 hits), the `⇧⌘F`
+  panel (grouped-by-file results, scroll-to-line with a brief pulse), the
+  `⌘P` fuzzy quick switcher.
+- **Polish + packaging (Phase 6, this session).**
+  - **Native menu bar** — `src-tauri/src/lib.rs`'s `build_menu`: App (Folio)
+    menu with About (name "Folio", copyright "© 2026") and the predefined
+    macOS app-menu items (Services, Hide/Hide Others/Show All, Quit); File
+    (New File `⌘N`, Open Folder `⌘⇧O`, Close Window); Edit (predefined
+    Undo/Redo/Cut/Copy/Paste/Select All — required for text editing to work
+    at all on macOS); View (Toggle Edit Mode, Toggle File Tree, Toggle
+    Contents, Zoom In/Out, Actual Size `⌘0`); Go (Back, Forward, Quick Open,
+    Find in Files); Window (Minimize, Zoom, Bring All to Front). Every custom
+    item has an id; `on_menu_event` relays it to the frontend as an
+    `app.emit("menu", id)` event, picked up in `src/App.tsx` and mapped to the
+    same actions the keyboard shortcuts trigger. Accelerators are set **only**
+    on the three items with no pre-existing frontend keydown handler (New
+    File, Open Folder, Actual Size) — every other item's action already has a
+    frontend shortcut, so it carries no accelerator, avoiding a double-fire.
+  - **File ops** — new Rust commands `create_file`/`rename_file`/`delete_file`
+    in `src-tauri/src/commands.rs` (create refuses on an existing target and
+    reuses the same atomic-write helper as `write_file`; rename refuses if
+    the target exists; delete moves to the system bin via the `trash` crate,
+    never a hard delete), mirrored in `src/ipc.ts` and `src/vault.ts`
+    (browser-mode in-memory equivalents with identical semantics). UI: a
+    tree-item right-click context menu (`src/components/Tree.tsx`, styled
+    like `LinkPopover`) with Rename (swaps the row for an inline mono input,
+    Enter confirms/Escape cancels) and Move to Bin (confirms in the same
+    popover); a New File dialog (`src/components/NewFileDialog.tsx`) reachable
+    via the tree pane's "New file" button and the menu/⌘N; store bookkeeping
+    (`renamePath`/`removePath` in `src/stores/appStore.ts`) keeps
+    `currentPath` and the back/forward stacks consistent across a rename or
+    delete of the open document.
+  - **Print stylesheet** — `src/styles/reader.css`'s `@media print` block now
+    hides all chrome (panes, footer, banners, popovers, dialogs, copy
+    buttons), forces true black-on-white by overriding the token custom
+    properties for print, sets `@page` margins, keeps code blocks/tables/
+    callouts/Mermaid/KaTeX from splitting across a page break
+    (`break-inside: avoid`), keeps headings from being orphaned at a page
+    bottom (`break-after: avoid`), wraps rather than clips long code lines
+    (a PDF page can't be scrolled sideways the way a screen can), never
+    expands hrefs after links, and prints the frontmatter block's fields
+    plainly instead of as an unopenable `<details>` disclosure. Verified by
+    generating a real PDF via Playwright's `page.pdf()` against
+    `torture-test.md` and rasterising every page with `pdftoppm` to look at
+    it directly — 5 pages, clean typography, no broken blocks, no chrome.
+  - **Final §6 audit** — screenshotted every surface (reader top/middle,
+    editor, conflict banner, search panel, quick switcher, disambiguation
+    and create-file popovers, tree context menu, new-file dialog, empty
+    state) and checked each against PLAN.md §6/§8. Found and fixed two
+    pre-existing bugs while at it (not introduced this session, but caught by
+    this audit): the TOC scroll-spy's "most in view" scoring was unbounded
+    for headings far above the viewport, so it stuck on the *first* heading
+    forever once you'd scrolled a couple of screens down (`src/components/Toc.tsx`
+    — rewritten to pick the last heading that's crossed a fixed threshold
+    line near the top of the viewport); and the empty state that appears
+    after binning the currently-open file said "Choose a folder to begin"
+    even when a root/tree was already active, and left the TOC showing the
+    stale outline of the just-deleted file (`src/App.tsx` — message is now
+    conditional on whether the tree has files, and `doc` is cleared when
+    `currentPath` goes to null). Also fixed a focus-visible regression
+    introduced by this session's own rename input (`outline: none` with no
+    replacement — now matches every other input's ink outline).
 
-- **Full project scaffold** — Tauri 2 + React 18 + TS + Vite, all plugins declared (dialog, store, fs, persisted-scope, opener), fonts bundled locally via Fontsource (offline-safe), tokens as CSS custom properties, three-pane shell in the house Monochrome style.
-- **The complete unified pipeline** (`src/markdown/`) — GFM, frontmatter (collapsed metadata block), KaTeX, Shiki (curated language set, lazy extras, mermaid fences skipped), monochrome callouts, wikilink remark plugin, staggered fade-up honouring reduced motion, lazy Mermaid themed to the tokens, TOC extraction, word count, copy buttons, interactive checkbox stubs with the Phase-4 write-back contract (`data-task-index` n ↔ nth `[ ]` marker in source).
-- **The Rust core** (`src-tauri/src/commands.rs`) — `pick_root` (persisted), `current_root`, `read_tree` (gitignore-aware, md-only, parent pointers), `read_file`, **`write_file` (atomic temp-file+rename with mtime conflict check — the load-bearing safety path)**, `watch_root` (debounced fs-changed events), `search` (ripgrep internals, regex-with-literal-fallback, capped), `build_link_index`.
-- **Typed IPC layer** (`src/ipc.ts`) mirroring the Rust structs.
-- **Storage facade** (`src/vault.ts`, Session C) — Tauri mode delegates to `ipc`; browser mode serves a full virtual vault built from every file under `samples/` via `import.meta.glob`, so `npm run dev`/`vite preview` behaves like a real root (tree, file reads, link index, file creation) with no Tauri shell, and link routing/history can be tested in this Linux container's Chromium.
-- **Link routing** (`src/linkRouter.ts`, `src/markdown/linkStyling.ts`, `src/pathUtils.ts`, `src/components/LinkPopover.tsx`, Session C) — relative-link and wikilink resolution, anchor scrolling, broken/external link styling, disambiguation and create-file popovers. See the Session C entry below for detail.
-- **`samples/`** — a 10-file linked vault (`torture-test.md` the permanent rendering fixture, plus `linked-note.md`, `index.md`, `specs/`, `notes/`, `archive/`) exercising every §4 rendering feature and every §5/§7 link-routing case.
-- **PLAN.md + CLAUDE.md** in place.
-
-## Verification status — read before trusting anything
+## Verification status
 
 | Layer | Status |
 | --- | --- |
-| TypeScript | ✓ `tsc --noEmit` clean; ✓ `vite build` clean (re-verified in the Session A Linux container after the startup-restore and Mermaid changes below) |
-| Rendered output | ✓ Verified headless in Chromium (`vite preview` + Playwright, Linux container): callouts ×5, KaTeX ×2, Mermaid SVG, Shiki, wikilinks ×3, checkboxes ×4, footnotes, frontmatter, TOC ×13, word count all render, all counts non-zero, no new console errors (one pre-existing harmless `favicon.ico` 404, unrelated). Screenshots reviewed against §6. **Still only checked in Chromium, never in WKWebView — that check stays on the Mac.** |
-| Rust | ✓ **Compiles clean on Linux as of Session A.** `apt-get install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev pkg-config` then `cargo check` and `cargo clippy` in `src-tauri/` both finish with zero errors and zero warnings. Two fixes were needed (see below); the write path, watcher and search commands are otherwise unchanged from the original scaffold. **Not yet run as `npm run tauri dev`, and never opened as a live window** — that stays on the Mac (no WKWebView/GTK window server here). |
-| Tauri shell | ✗ Untested (no macOS here, and this container has no display server to open a real window even on Linux). Window config, capabilities, file associations, drag-and-drop, "Open With" unexercised |
-| Startup restore | ✓ Wired (`current_root` IPC wrapper added, `App.tsx` calls it on mount and restores root + tree + watcher). ✗ Not exercised end-to-end against a live Tauri window — needs the Mac to confirm the workspace actually reopens after a real relaunch |
-| Link routing (Phase 3) | ✓ Fully verified in Chromium against the 10-file vault: relative links, cross-file + same-page anchors (including a real ~330px scroll delta, not just "already in view"), unambiguous and ambiguous wikilinks (disambiguation popover), broken-link styling and create-on-click, ⌘[/⌘] history round-trips with no anchor-scroll pollution. `write_file`'s mtime-skip-on-new-file behaviour was checked by reading `src-tauri/src/commands.rs`, not exercised against a real root. ✗ External-link opening (`openUrl` via `@tauri-apps/plugin-opener`) is wired and typechecks but has only been confirmed by inspection (capability + dependency already present) — needs a real Tauri window to confirm it actually opens the system browser. ✗ Real-root wikilink file creation (vs. the in-memory browser vault) untested — needs the Mac. |
+| TypeScript | ✓ `tsc --noEmit` clean, ✓ `vite build` clean |
+| Rust | ✓ `cargo check` and `cargo clippy` both zero-warning in `src-tauri/`, including the new menu code and the new `create_file`/`rename_file`/`delete_file` commands (and the `trash` crate dependency) |
+| Regression scripts | ✓ All five pass unmodified against `vite preview` + Playwright/Chromium: `smoke.mjs`, `linktest.mjs`, `edittest.mjs`, `searchtest.mjs`, and the new `fileopstest.mjs` (new-file dialog, tree rename, tree delete-to-bin, all with cancel paths) |
+| Print stylesheet | ✓ Verified as a real rasterised PDF in this container (Chromium print pipeline) — never verified against macOS's actual print dialog/PDF export |
+| Native menu bar | ✓ Compiles clean and the event-routing path (`on_menu_event` → `emit` → `App.tsx` listener) is verified by code inspection and matches the same pattern as the already-working `open-file` event. **Never opened as a real menu bar** — this container has no window server. Everything in the checklist below about menu appearance, About window text, and accelerator behaviour is unverified until the Mac |
+| Everything else | Unchanged since Session E — see git history for Session A–E detail if needed; this file no longer carries the old per-session log now that every phase is closed out |
 
-### Session A fixes to the Rust core (this session)
+## Pre-ship checklist (run once, on the Mac)
 
-1. **Missing app icon.** `tauri::generate_context!()` panicked with `failed to open icon .../icons/icon.png: No such file or directory`. This is not Linux-specific — `tauri-codegen`'s `find_icon` falls back to `icons/icon.png` for the default window icon on **every** target when `bundle.icon` is empty (Windows only tries `.ico` first before hitting the same PNG fallback; macOS/Linux go straight to it). Added a small placeholder PNG (`src-tauri/icons/icon.png`, monochrome cream/ink, 256×256) purely to unblock compilation. `bundle.icon` in `tauri.conf.json` is still `[]` — the real icon design (`npx tauri icon`) remains a Phase 6 task; replace this placeholder file when that's done.
-2. **Unused import warning.** `commands.rs` imported `tauri::Manager` but never used it (the trait is only needed in `lib.rs`, which already imports it separately). Removed the unused import so `clippy` is warning-clean.
+Everything below needs a real window, WKWebView, or a real filesystem — none
+of it can be checked from this Linux container. Work down the list in order;
+each step assumes the previous ones passed.
 
-No other changes were needed — `pick_root`/`FilePath::into_path`, the `notify` v8 watcher API, and the `tauri-plugin-store` `StoreExt` calls in `commands.rs` all matched the installed crate versions (tauri 2.11, notify 8.2, tauri-plugin-store 2.4) with no changes required.
+1. **First boot.** `cd folio && npm install && npm run tauri dev`. Confirm a
+   styled window opens (not a blank/white screen), the three-pane shell
+   renders in the house Monochrome style, and no console errors appear in the
+   WKWebView devtools.
+2. **WKWebView rendering pass.** Open `samples/torture-test.md` and compare it
+   against the Chromium screenshots taken in this container (scratchpad
+   `audit-*.png`, `folio-*.png`). PLAN.md §8 warns WKWebView is not Chromium —
+   look specifically at: Shiki code block backgrounds/borders, KaTeX spacing,
+   the Mermaid diagram's fills/strokes, `color-mix()` support (the hairline
+   `--border-faint` token uses it), and the entrance fade-up animation.
+3. **Startup restore.** Pick a root, quit the app fully, relaunch. Confirm the
+   tree, the watcher, and the root name all come back with no user action.
+4. **Drive-sync live-reload + the real kill-test.** Point the root at a
+   Drive-synced folder (or just a plain folder if Drive isn't handy). Edit a
+   file in another app/editor while it's open in Folio — confirm the Reader
+   updates within ~1s without losing scroll position. Then run the actual
+   kill-test: open a file in the editor, make an edit, then externally
+   change the same file on disk (another editor, or `echo >> file.md` from a
+   terminal) before saving — confirm the conflict banner appears and that
+   each of Keep mine / Take theirs / Show both behaves exactly as it does in
+   the browser-mode simulation (this container only ever exercised the
+   simulated-mtime version of this path, never a real second writer on a
+   real file).
+5. **Menu bar + About + accelerators.** Confirm the App/File/Edit/View/Go/
+   Window menu bar appears and matches the structure documented above. Open
+   About Folio — check it shows "Folio" and "© 2026". Click every custom
+   menu item once and confirm it does what its equivalent keyboard shortcut
+   does (and doesn't double-fire if you also press the shortcut). Specifically
+   check `⌘N`, `⌘⇧O`, and `⌘0` (Actual Size) — these three have **no**
+   frontend keydown handler and are reachable only through the menu, so
+   they're the ones most likely to reveal a wiring mistake.
+6. **File associations / Open With / dock-drop.** From Finder: right-click a
+   `.md` file → Open With → Folio (should open the file, and the full
+   workspace if it's inside the last-used root). Drag a `.md` file onto the
+   Folio dock icon. Both should fire the `open-file` event (already
+   logged to console from Session B — confirm it still fires, and that a
+   drag-and-drop lands on the right file).
+7. **File ops against a real disk.** Create a file via `⌘N`/the New File
+   dialog and confirm it lands on disk with `# Title\n`. Rename a file via
+   the tree's context menu and confirm the file on disk is actually renamed
+   (not copied) and that any open document/history reference follows it.
+   Move a file to the bin and confirm it actually lands in the macOS Trash
+   (recoverable), not permanently deleted.
+8. **Print → PDF.** `⌘P` (or the menu, once wired to the OS print dialog)
+   against `torture-test.md`. Compare the resulting PDF against the
+   `print-page-*.png` renders from this session — look for the same things:
+   no chrome, no broken code blocks, headings not orphaned, black-on-white,
+   sensible margins.
+9. **Performance.** Point the root at (or synthesize) a ~500-file vault and
+   confirm `⇧⌇F` search returns in well under a second (PLAN.md §7 Phase 5
+   acceptance criterion — only ever checked against the browser-mode vault
+   equivalent in this container, never the real Rust `search` command at
+   scale).
+10. **`npm run tauri build` → `.dmg`.** Build on the M5 Air, not the Intel
+    machine, if both are available — PLAN.md §8 notes Rust release builds are
+    slow on Intel. The real app icon (`npx tauri icon` output, `bundle.icon`
+    in `tauri.conf.json`) should already be in place from an earlier session
+    — confirm it appears correctly in the Dock and the `.dmg` installer, not
+    the Session A placeholder PNG.
 
-## Task list from here, in order, with model assignments
+## v2 candidates (out of scope for v1 — do not build hooks for these speculatively)
 
-Per PLAN.md §7: Sonnet 4.6 for anything touching the pipeline, Rust IPC, CodeMirror or the write path; Haiku 4.5 for mechanical work; Opus only if a task is stuck twice.
-
-**Session A — first boot on the Mac** · **Sonnet 4.6** *(do this first; everything else depends on it)*
-
-Split across two environments — a Linux container did everything that doesn't need a real window or WKWebView; the rest is still pending on the Mac.
-
-Done in the Linux container (this session):
-1. ~~Fix whatever `cargo` complains about~~ — done. Installed the Linux system libs (`libwebkit2gtk-4.1-dev` etc.), then `cargo check`/`cargo clippy` in `src-tauri/` both came back clean after two small fixes (missing app icon, unused import — see the Verification status table above for detail).
-2. ~~Wire startup: call `current_root`~~ — done. Added `ipc.currentRoot()` to `src/ipc.ts` and an effect in `src/App.tsx` (mirrors the existing `pickRoot` callback) that calls it on mount, and on a hit calls `setRoot` + `setTree(await ipc.readTree())` + `await ipc.watchRoot()`.
-3. Known polish item: Mermaid node fills render pale grey, not `paper3` — **fixed**. The `neutral` theme hard-codes node fill (`mainBkg`) to `#eee` regardless of `themeVariables`; switched `src/markdown/mermaid.ts` to `theme: "base"` (the one theme where every colour derives from overrides) with explicit `mainBkg`/`nodeBkg`/`nodeBorder`/`clusterBkg` etc. Verified with a headless Chromium screenshot (`vite build` + `vite preview` + the scratchpad Playwright script) — the flowchart in the torture test now renders cream fills with ink strokes/text/arrows, reading as monochrome.
-4. `npm run typecheck` and `npx vite build` re-verified clean after the above.
-
-Still needs the Mac (nothing here confirms these — do not treat them as done):
-1. `cd folio && npm install && npm run tauri dev` — never run; this container has no display server and no WKWebView/GTK runtime to open a window in, only the compiler toolchain.
-2. Confirm the app actually opens a styled shell, and re-check §6 typography/Mermaid details in real WKWebView (not Chromium — WKWebView has its own CSS quirks per PLAN.md §8).
-3. Confirm startup restore end-to-end: launch once, pick a root, quit, relaunch, confirm the tree/watcher/root name come back without user action.
-4. Verify Phase 0/1 acceptance in-app: reduced motion honoured, checkbox tick logs.
-5. Verify Phase 2 acceptance: pick a Drive-synced root, edit a file externally, Reader updates within ~1s without losing scroll position.
-
-**Session B — Phase 1/2 chrome polish** · **Haiku 4.5** ✓
-- ✓ TOC scroll-spy: scroll-based active heading detection, styled in ink.
-- ✓ Persisted UI state: created `src/persist.ts` (LazyStore with localStorage fallback), moved tree expansion state to appStore, pane visibility persisted.
-- ✓ Open-file event: added RunEvent handler in `src-tauri/src/lib.rs` (macOS/iOS/Android conditional), frontend listener logs events.
-- ✓ Chrome refinements: word count grammar ("1 word" vs "n words"), zoom level display in footer (briefly on zoom change), empty state screen ("Choose a folder to begin").
-- Note: Open-file event handling unverified without real Tauri window (Linux container; will verify on macOS).
-
-**Session C — Phase 3: links + history** · **Sonnet 4.6** ✓
-- ✓ Browser-mode virtual vault (`src/vault.ts`): `import.meta.glob("../samples/**/*.md", { query: "?raw", import: "default", eager: true })` loads every sample file into an in-memory map; `readFile`/`linkIndex`/`exists`/`listTree`/`createFile` delegate to `ipc` in Tauri mode and to the map in browser mode. `App.tsx` and `src/linkRouter.ts` call this facade, never `ipc`/`isTauri()` directly (except the couple of genuinely Tauri-only concerns: `pickRoot`, `currentRoot`, `watchRoot`, `onFsChanged`, opening external links).
-- ✓ Extended `samples/` to a 10-file linked vault: `torture-test.md`, `linked-note.md`, `index.md`, `specs/api-spec.md`, `specs/overview.md`, `specs/design.md`, `notes/overview.md`, `notes/daily.md`, `notes/ideas.md`, `archive/old-plan.md`. Covers both link styles, a cross-file anchor link (`specs/api-spec.md#endpoints`), a same-page anchor to a distant heading (`#mermaid`), an ambiguous stem (`specs/overview.md` / `notes/overview.md`, both literally named `overview.md`), and deliberately broken links (a relative link and two wikilinks). `torture-test.md` kept intact — only a new "Links (Phase 3 vault)" section was appended.
-- ✓ `src/linkRouter.ts` (`resolveLinkClick`): relative links resolve against the current file's directory (`src/pathUtils.ts` handles `./`/`../` normalisation), navigate in-app and push history; anchors are slugified with `github-slugger`'s `slug()` (the same algorithm rehype-slug uses) and scrolled to after the target document renders. Same-page `#anchor` clicks scroll only, no history push. Wikilinks resolve via the link index by case-normalised stem (hyphens/underscores/spaces treated as equivalent, since the samples use hyphenated filenames but prose reads naturally with spaces — see `normalizeStem`); ties are broken by directory distance (`dirDistance`), and a genuine tie opens a disambiguation popover. External http(s) links use `@tauri-apps/plugin-opener`'s `openUrl` in Tauri mode (dependency + capability were already wired from Phase 0) and `window.open` in browser mode.
-- ✓ Broken/external link styling: `src/markdown/linkStyling.ts` is a post-mount DOM pass (same pattern as the Mermaid lazy-render step, since resolution needs the async link index) that adds `.broken-link` to unresolvable wikilinks/relative links and `.external-link` to http(s) links.
-- ✓ Broken-wikilink create-on-click: a small Monochrome popover (`src/components/LinkPopover.tsx` — mono type, hairline border, paper2 fill, dismiss on outside-click/Escape) offers to create the file; on confirm it writes `# Title\n` via `vault.createFile`, which uses `ipc.writeFile(path, content, 0)` in Tauri mode (safe because `write_file` skips its mtime check when the file doesn't exist yet) and just extends the in-memory map in browser mode.
-- ✓ History (`appStore.ts`, pre-existing) verified to behave like a browser: link navigation pushes; anchor scrolls (same-page and cross-file) never push; ⌘[/⌘] (tested here as Ctrl+[/Ctrl+] — the handler accepts either) round-trip correctly.
-- ✓ Verified with Playwright against `vite build` + `vite preview` (Chromium): `npm run typecheck` and `npx vite build` both clean. `smoke.mjs` still passes (all counts non-zero, one pre-existing harmless favicon 404). New `linktest.mjs` (in the scratchpad) confirms: relative link → correct document; cross-file anchor link → navigates and scrolls (verified via a same-page distant-heading anchor too, ~330px real scroll delta, landing within a few px of the viewport top); same-page anchor → no history pollution (one ⌘[ after it returns to the true previous document); unambiguous wikilink → navigates; ambiguous wikilink (`[[overview]]`) → disambiguation popover listing both `specs/overview.md` and `notes/overview.md`; broken wikilink → has `.broken-link`, click → create-file popover → confirm → creates and navigates to the new file; ⌘[ / ⌘] round-trip. Disambiguation and create-offer popovers screenshotted and checked against §6 (mono type, hairline border, paper2 fill, uppercase mono label) — conformant.
-- Unverifiable without a Mac/real Tauri window (do not treat as done): the `openUrl` (external link) call in Tauri mode — the code path and capability wiring were checked by inspection (`opener:default` already in `src-tauri/capabilities/default.json`, `@tauri-apps/plugin-opener` already a dependency), but never exercised against a real WKWebView/system browser. Likewise, `vault.createFile`'s Tauri branch (`ipc.writeFile(path, content, 0)`) was verified by reading `src-tauri/src/commands.rs` (`write_file` skips the mtime check when `abs.exists()` is false, so `expectedMtimeMs: 0` is safe) but only actually exercised end-to-end in browser mode here; confirm real-root file creation on the Mac.
-
-**Session D — Phase 4: editor + safe writes** · **Sonnet 4.6** ✓
-- ✓ `src/vault.ts` extended with `writeFile(path, content, expectedMtimeMs)` — Tauri mode delegates to `ipc.writeFile`; browser mode simulates the exact same conflict semantics against the in-memory map (monotonic simulated mtimes, rejects with `{ kind: "conflict", currentMtimeMs }` — `isConflictError` guard), so the conflict banner is fully exercisable in Chromium. Added the dev-only `window.__folioSimulateExternalEdit(path, content)` hook (guarded to browser mode only) and `vault.onExternalChange`, which unifies Tauri's `fs-changed` events and that hook behind one subscription API so App.tsx never branches on `isTauri()` for live-reload/conflict-detection. `src-tauri/` untouched — the Rust write path needed no changes.
-- ✓ `src/components/Editor.tsx` — CodeMirror 6 (`@codemirror/lang-markdown` + `language-data` for fenced-code highlighting, plus a newly added `@codemirror/commands` for undo/redo and default Enter/Tab/Backspace bindings — the only new dependency this session), no line numbers/gutter, JetBrains Mono ~13.5px, ink cursor, paper2 selection (`drawSelection()`), auto-height so the shared `.pane-doc` scroll container (same one the Reader uses) does the scrolling. `.editor-shell` (src/styles/editor.css) reuses `--reading-width` in the reader's own font context so the ~70ch column lines up pixel-for-pixel with the Reader. CodeMirror is uncontrolled past creation — App.tsx forces a remount via `key={`${currentPath}:${resetSeq}`}` whenever the buffer must be replaced programmatically (new file, "take theirs", "show both").
-- ✓ ⌘E toggles Reader ⇄ Editor (replacing the Phase 1 console.log), with a plain proportional scroll-fraction capture/restore across the toggle (double-rAF to let the new content lay out first). ⌘S saves immediately; autosave fires on a 2s idle debounce after the last keystroke. Both funnel through one `performSave`, guarded by a single shared in-flight flag (also used by the checkbox write-back, so there's never more than one write racing the vault). Navigating away or toggling back to reader while dirty flushes the pending save first — implemented as the *same* effect that loads the next file's content (its cleanup flushes the file being left, guaranteed to run before its own new setup resets the buffer for the incoming file, avoiding the effect-ordering hazard a separate flush-effect would have had).
-- ✓ `src/components/ConflictBanner.tsx` — non-modal, house Monochrome (paper3 fill, hairline ink border, mono uppercase label "File changed on disk", no colour), rendered above whichever of Reader/Editor is showing (sticky-position not needed in practice — it renders inline above the content). Three actions: **Keep mine** (re-reads the file's current mtime, force-saves the pending content with that fresh mtime), **Take theirs** (discards local edits, loads disk content into source/draft), **Show both** (appends the disk version under an HTML-comment-delimited `FOLIO CONFLICT` divider, marks the buffer dirty, and drops into edit mode if not already there — no auto-merge, no data loss). Works identically whether the conflict came from the editor or from a reader-mode checkbox write, since both go through the same `performSave`/conflict-state plumbing in App.tsx.
-- ✓ Live-reload path: `vault.onExternalChange` listener in App.tsx skips the reload entirely while the open file has unsaved edits (checked via a ref, not React state, to avoid stale closures) — the buffer is never clobbered; the *next* save naturally hits the mtime check on the vault and surfaces the conflict banner. When clean, reload proceeds as before (and resyncs the editor buffer + forces a remount if currently editing).
-- ✓ Real checkbox write-back (`src/taskMarkers.ts` + `TaskToggleContext` in `src/components/ReaderBlocks.tsx`): ticking checkbox *n* rewrites the nth `[ ]`/`[x]`/`[X]` task marker (regex over lines, document order) via `setTaskMarker`, applies it to `source` optimistically (so the checkbox never snaps back while the write is in flight), then writes through `vault.writeFile` with the tracked mtime. Guarded against double-fires by the same shared in-flight flag as the editor saves. On conflict, the same banner appears (Reader can't render checkboxes while editing, so there's no path for the two write flows to race each other on the same file).
-- ✓ Verified with Playwright against `vite build` + `vite preview` (Chromium): `npm run typecheck` and `npx vite build` both clean. `smoke.mjs` and `linktest.mjs` (unmodified) both still fully green — no regression to rendering or link routing. New `edittest.mjs` (scratchpad) confirmed every acceptance point in PLAN.md §7 Phase 4, including **the kill-test**: start editing → external edit behind its back (`window.__folioSimulateExternalEdit`) → save → conflict banner appears → each of Keep mine / Take theirs / Show both produces exactly the expected buffer content with zero data loss. Also confirmed: ⌘E swaps to a raw-source CodeMirror view and back; a >2s idle autosave persists across navigate-away-and-back; ⌘S persists immediately with no wait; ticking/unticking a reader checkbox flips the right `[ ]`/`[x]` marker in the underlying source (checked via the raw source in edit mode) and the rendered box updates to match. Screenshots of the editor and the conflict banner reviewed against §6 — Monochrome throughout (paper/paper3 fills, hairline ink borders, mono uppercase labels, ink cursor and selection, no colour anywhere).
-- ✗ Still Mac-only (nothing here confirms these): the real-filesystem version of the kill-test (this session only exercised the browser-mode vault's simulated-mtime conflict path, which mirrors write_file's semantics exactly but was never run against a real file on disk with a real second process/editor touching it) — needs a live Tauri window and an actual external edit (e.g. another editor, or `echo >>` the file) mid-edit. Likewise Drive-sync conflicts specifically (the scenario PLAN.md §8 calls out as the reason the mtime check exists) are unverified beyond code inspection — needs a Drive-synced root on the Mac with a real second writer. CodeMirror's rendering/behaviour has also only been checked in Chromium, never WKWebView.
-
-**Session E — Phase 5: search + switcher** · **Sonnet 4.6 for any `search` command changes; Haiku 4.5 for the panels** ✓
-- ✓ `vault.search(query)`: delegates to `ipc.search()` in Tauri mode; browser mode implements identical semantics (case-insensitive regex-with-literal-fallback over in-memory vault, capped at 500 hits, returns {path, line, text} per matching line).
-- ✓ `SearchPanel` (⇧⌘F / Ctrl+Shift+F): replaced tree pane during search, restyled mono input ≥16px with hairline border + paper ground, debounced ~200ms search-as-you-type, results grouped by file path (mono uppercase headers) with line numbers (graphite) and matching text, total hit count, click a hit to navigate + scroll-to-line (proportional fallback, then walk rendered blocks, apply brief `search-scroll-pulse` animation; skipped under prefers-reduced-motion), Escape closes + refocuses document.
-- ✓ `QuickSwitcher` (⌘P / Ctrl+P): centred overlay (paper ground, hairline ink border, radius 2), fuzzy filename match against `vault.linkIndex()` using simple subsequence scoring (chars in order, bonuses for word boundaries and stem starts), max ~12 results, arrow keys + Enter to navigate and open, Escape closes, current selection highlighted paper2 with ink text, file stem prominent + path in graphite small type.
-- ✓ Keyboard handler fixed: guards against blocking shortcuts while typing in text inputs, but excludes checkboxes (check input type is "text"/"search" or empty, not all input types), so ⌘P/⇧⌘F open from anywhere and Ctrl+E works after checkbox clicks.
-- ✓ Verified with Playwright (Chromium at /opt/pw-browsers/chromium): `npm run typecheck` and `npx vite build` both clean. All three pre-existing tests still pass unmodified (smoke.mjs, linktest.mjs, edittest.mjs); new searchtest.mjs confirms ⇧⌘F opens panel, typing yields grouped results with correct file count, clicking navigates and scroll-to-line lands with pulse, Escape closes; ⌘P opens switcher, partial stem filters fuzzily, arrow down + Enter opens correct file, Escape closes; both panels styled against §6 (Monochrome: mono chrome, hairline rules, no colour, paper fills, graphite text, ink accents). Screenshots reviewed and conformant.
-- Unverifiable without a Mac/real Tauri window: the real Rust `search` path over a large >1s/500-file root (browser mode equivalence verified here but Rust performance untested — needs the Mac to confirm the <1s acceptance in §7).
-- Outstanding for Phase 6: keyboard handler also needs to not block shortcuts while typing in the search-panel and quick-switcher inputs themselves (currently blocked by my guards to avoid re-opening the panels while typing) — this is correct behaviour.
-
-**Session F — Phase 6: polish + packaging** · **Haiku 4.5 chores; Sonnet 4.6 for the print stylesheet + final §6 audit**
-- ✓ App icon: cream/ink monogram (1024×1024, Jost 300 "F", hairline border, ~180px radius) designed and generated; `npx tauri icon` created the full icon set (32×32, 128×128, 128×128@2x, .icns, .ico); `bundle.icon` in `tauri.conf.json` configured.
-- ✗ Native menu bar: Rust menu API (Tauri 2) proved too complex within time constraints; attempted several approaches but unable to get MenuBuilder/Submenu constructors to type-check; code reverted to maintain clean compilation. Menu structure designed in this document; needs implementation on the Mac with proper Tauri 2 API understanding. Menu event routing pattern is ready to wire in App.tsx once the Rust side compiles.
-- ✓ README.md: written with project overview, features, dev/build setup, layout, architecture, design notes, testing instructions.
-- ✓ Verification: npm run typecheck clean, npx vite build clean, cargo check clean; all four Playwright regression scripts pass unmodified (smoke.mjs, linktest.mjs, edittest.mjs, searchtest.mjs).
-- Still Mac-only after Phase 6: About window text ("© 2026"), menu appearance, icon appearance in Dock; print stylesheet (⌘P output) aesthetic verification.
-
-**Phase 7 (later) — Android** · **Sonnet 4.6** — as PLAN.md §7.
-
-## Standing rules for every session
-
-- One phase per session; plan mode first; update "Current phase" in CLAUDE.md and tick off this file as you go.
-- Commit at every green acceptance check.
-- Never add a second write path around `write_file`.
-- Check `samples/torture-test.md` after any pipeline or CSS change.
+Backlinks panel, graph view, tabs, cloud APIs, plugins, themes beyond the
+house theme, publishing — per PLAN.md §1's explicit out-of-scope list, plus
+whatever Phase 7 (Android, `tauri android init`) needs once v1 is confirmed
+solid on the Mac.

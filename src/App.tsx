@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeft, PanelRight, FolderOpen } from "lucide-react";
+import { PanelLeft, PanelRight, FolderOpen, FilePlus } from "lucide-react";
 import { Reader } from "./components/Reader";
 import { Editor } from "./components/Editor";
 import { ConflictBanner } from "./components/ConflictBanner";
@@ -8,11 +8,13 @@ import { Tree } from "./components/Tree";
 import { LinkPopover } from "./components/LinkPopover";
 import { SearchPanel } from "./components/SearchPanel";
 import { QuickSwitcher } from "./components/QuickSwitcher";
+import { NewFileDialog } from "./components/NewFileDialog";
 import { useAppStore } from "./stores/appStore";
 import { ipc, isTauri } from "./ipc";
 import { vault, isConflictError } from "./vault";
 import { setTaskMarker } from "./taskMarkers";
 import { resolveLinkClick } from "./linkRouter";
+import { dirname, sanitizeFileName } from "./pathUtils";
 import type { RenderedDoc } from "./markdown/pipeline";
 
 const ZOOM_STEPS = [0.85, 1, 1.15, 1.3, 1.5];
@@ -60,6 +62,8 @@ export default function App() {
     togglePane,
     toggleEditing,
     setEditing,
+    renamePath,
+    removePath,
   } = useAppStore();
 
   const [source, setSource] = useState<string | null>(null);
@@ -68,6 +72,8 @@ export default function App() {
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const [newFileOpen, setNewFileOpen] = useState(false);
+  const [newFileError, setNewFileError] = useState<string | null>(null);
 
   // ---- Phase 4: editing / saving / conflict state ----
   // mtimeMs and dirty are plain refs — nothing renders their raw value
@@ -220,7 +226,14 @@ export default function App() {
   // run resets draft/mtime for the new one, so a pending autosave is never
   // silently lost on navigation (PLAN.md §4).
   useEffect(() => {
-    if (!currentPath) return;
+    if (!currentPath) {
+      // Nothing open (e.g. the document just got renamed away or binned) —
+      // drop the stale rendered doc so the TOC empties instead of still
+      // showing the outline of a file that's no longer open.
+      setSource(null);
+      setDoc(null);
+      return;
+    }
     let cancelled = false;
     vault.readFile(currentPath).then(({ content, mtimeMs: mtime }) => {
       if (cancelled) return;
@@ -282,6 +295,92 @@ export default function App() {
     setTree(await vault.listTree());
     await ipc.watchRoot();
   }, [setRoot, setTree]);
+
+  // ---- File ops (PLAN.md §4/§7 Phase 6): create / rename / delete-to-bin ----
+
+  /** ⌘N and the menu's "new-file" id both land here (via the App.tsx menu
+   * listener below) — there is no separate frontend keydown handler for
+   * ⌘N itself, since that accelerator lives only on the native menu item
+   * (see src-tauri/src/lib.rs's build_menu); giving it a JS handler too
+   * would risk exactly the double-fire the escalated menu task called out. */
+  const handleCreateFile = useCallback(
+    async (name: string) => {
+      const folder = currentPath ? dirname(currentPath) : "";
+      const fileName = sanitizeFileName(name);
+      const path = folder ? `${folder}/${fileName}` : fileName;
+      try {
+        await vault.createFile(path);
+      } catch {
+        setNewFileError(`"${fileName}" already exists in ${folder || "the root"}.`);
+        return;
+      }
+      setTree(await vault.listTree());
+      setNewFileOpen(false);
+      setNewFileError(null);
+      navigate(path);
+    },
+    [currentPath, setTree, navigate],
+  );
+
+  /** Renames swap the tree row for an inline input (Tree.tsx); this is the
+   * confirm step. If the renamed file is open and dirty, flush the pending
+   * edit to the OLD path first — otherwise the navigate-away cleanup in the
+   * currentPath effect above would autosave to the old path after the
+   * rename and resurrect it. */
+  const handleRenameFile = useCallback(
+    async (oldPath: string, newName: string) => {
+      const extMatch = /\.(md|markdown)$/i.exec(oldPath);
+      const ext = extMatch ? extMatch[0] : ".md";
+      const dir = dirname(oldPath);
+      const fileName = sanitizeFileName(newName, ext);
+      const newPath = dir ? `${dir}/${fileName}` : fileName;
+      if (newPath === oldPath) return;
+
+      if (
+        useAppStore.getState().currentPath === oldPath &&
+        dirtyRef.current &&
+        draftRef.current !== null &&
+        mtimeRef.current !== null
+      ) {
+        cancelAutosave();
+        await performSave(oldPath, draftRef.current, mtimeRef.current);
+      }
+
+      try {
+        await vault.renameFile(oldPath, newPath);
+      } catch (err) {
+        console.error("[folio] rename failed:", err);
+        return;
+      }
+
+      setTree(await vault.listTree());
+      renamePath(oldPath, newPath);
+    },
+    [cancelAutosave, performSave, setTree, renamePath],
+  );
+
+  /** Move to Bin. If the deleted file is the open, dirty document, clear
+   * the dirty buffer first — otherwise the navigate-away cleanup would
+   * autosave the pending draft straight back into existence at the path we
+   * just binned. */
+  const handleDeleteFile = useCallback(
+    async (path: string) => {
+      if (useAppStore.getState().currentPath === path) {
+        cancelAutosave();
+        setDirty(false);
+        setDraft(null);
+      }
+      try {
+        await vault.deleteFile(path);
+      } catch (err) {
+        console.error("[folio] delete failed:", err);
+        return;
+      }
+      setTree(await vault.listTree());
+      removePath(path);
+    },
+    [cancelAutosave, setTree, removePath],
+  );
 
   // Route a link click (relative / wikilink / anchor / external) via
   // src/linkRouter.ts. Popover positioning uses the clicked <a>'s own
@@ -391,6 +490,17 @@ export default function App() {
     performSave(currentPath, draftRef.current, mtimeRef.current);
   }, [editing, currentPath, cancelAutosave, performSave]);
 
+  // Shared by the ⌘+/⌘− keydown handler and the native menu's Zoom In/Out/
+  // Actual Size items (the menu carries the accelerator for Actual Size
+  // only — zoom in/out are already frontend shortcuts, see build_menu).
+  const zoomIn = useCallback(() => {
+    setZoom((z) => ZOOM_STEPS[Math.min(ZOOM_STEPS.indexOf(z) + 1, ZOOM_STEPS.length - 1)]);
+  }, []);
+  const zoomOut = useCallback(() => {
+    setZoom((z) => ZOOM_STEPS[Math.max(ZOOM_STEPS.indexOf(z) - 1, 0)]);
+  }, []);
+  const zoomReset = useCallback(() => setZoom(1), []);
+
   // ---- Conflict banner actions ----
 
   const resolveKeepMine = useCallback(async () => {
@@ -462,10 +572,10 @@ export default function App() {
         goForward();
       } else if (e.key === "=" || e.key === "+") {
         e.preventDefault();
-        setZoom((z) => ZOOM_STEPS[Math.min(ZOOM_STEPS.indexOf(z) + 1, ZOOM_STEPS.length - 1)]);
+        zoomIn();
       } else if (e.key === "-") {
         e.preventDefault();
-        setZoom((z) => ZOOM_STEPS[Math.max(ZOOM_STEPS.indexOf(z) - 1, 0)]);
+        zoomOut();
       } else if (e.key.toLowerCase() === "e") {
         e.preventDefault();
         handleToggleEditing();
@@ -484,7 +594,70 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goBack, goForward, handleToggleEditing, handleSaveNow]);
+  }, [goBack, goForward, handleToggleEditing, handleSaveNow, zoomIn, zoomOut]);
+
+  // Native menu bar clicks (Tauri only — see src-tauri/src/lib.rs's
+  // on_menu_event/build_menu). Every id maps to the same action its
+  // frontend keyboard shortcut would trigger; New File/Open Folder/Actual
+  // Size have no frontend shortcut of their own and are reachable ONLY
+  // through this path (their accelerator lives solely on the menu item).
+  useEffect(() => {
+    if (!isTauri()) return;
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    ipc
+      .onMenuEvent((id) => {
+        switch (id) {
+          case "toggle-edit":
+            handleToggleEditing();
+            break;
+          case "back":
+            goBack();
+            break;
+          case "forward":
+            goForward();
+            break;
+          case "toggle-tree":
+            togglePane("tree");
+            break;
+          case "toggle-toc":
+            togglePane("toc");
+            break;
+          case "zoom-in":
+            zoomIn();
+            break;
+          case "zoom-out":
+            zoomOut();
+            break;
+          case "zoom-reset":
+            zoomReset();
+            break;
+          case "quick-open":
+            setQuickSwitcherOpen(true);
+            break;
+          case "search":
+            setSearchOpen(true);
+            break;
+          case "open-folder":
+            pickRoot();
+            break;
+          case "new-file":
+            setNewFileError(null);
+            setNewFileOpen(true);
+            break;
+          default:
+            break;
+        }
+      })
+      .then((f) => {
+        if (cancelled) f();
+        else unlisten = f;
+      });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [handleToggleEditing, goBack, goForward, togglePane, zoomIn, zoomOut, zoomReset, pickRoot]);
 
   // Show zoom level briefly when it changes
   const [showZoomBriefly, setShowZoomBriefly] = useState(false);
@@ -519,12 +692,28 @@ export default function App() {
         showTree && (
           <aside className="pane-tree">
             {isTauri() && (
-              <button className="tree-item" onClick={pickRoot} style={{ marginBottom: 12 }}>
+              <button className="tree-item" onClick={pickRoot} style={{ marginBottom: 4 }}>
                 <FolderOpen size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />{" "}
                 {rootName ?? "Choose folder…"}
               </button>
             )}
-            <Tree nodes={tree} currentPath={currentPath} onOpen={navigate} />
+            <button
+              className="tree-item"
+              onClick={() => {
+                setNewFileError(null);
+                setNewFileOpen(true);
+              }}
+              style={{ marginBottom: 12 }}
+            >
+              <FilePlus size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} /> New file
+            </button>
+            <Tree
+              nodes={tree}
+              currentPath={currentPath}
+              onOpen={navigate}
+              onRenameFile={handleRenameFile}
+              onDeleteFile={handleDeleteFile}
+            />
           </aside>
         )
       )}
@@ -534,6 +723,7 @@ export default function App() {
           <>
             <div
               ref={scrollHostRef}
+              className="doc-scroll-host"
               style={{ flex: 1, overflowY: "auto", fontSize: `${zoom}em` }}
             >
               {showConflictBanner && (
@@ -585,7 +775,10 @@ export default function App() {
           </>
         ) : (
           <div className="empty-state">
-            <p>Choose a folder to begin</p>
+            {/* Files already exist (e.g. the open document was just binned,
+                or the root has content but nothing's open yet) — "choose a
+                folder" would be misleading once a root is already active. */}
+            <p>{tree.length > 0 ? "Select a file to begin" : "Choose a folder to begin"}</p>
           </div>
         )}
       </main>
@@ -628,7 +821,7 @@ export default function App() {
               className="link-popover-button"
               onClick={async () => {
                 const { path, title } = popover;
-                await vault.createFile(path, `# ${title}\n`);
+                await vault.createFileWithContent(path, `# ${title}\n`);
                 setTree(await vault.listTree());
                 setPopover(null);
                 navigate(path);
@@ -644,6 +837,17 @@ export default function App() {
       )}
 
       <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
+
+      <NewFileDialog
+        open={newFileOpen}
+        folder={currentPath ? dirname(currentPath) : ""}
+        error={newFileError}
+        onClose={() => {
+          setNewFileOpen(false);
+          setNewFileError(null);
+        }}
+        onCreate={handleCreateFile}
+      />
     </div>
   );
 }

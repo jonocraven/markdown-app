@@ -373,18 +373,72 @@
   max-width: 100%;
 }
 
-/* ---- Print: ⌘P should produce a beautiful PDF for free ---- */
+/* ---- Print: ⌘P should produce a beautiful PDF for free ----
+   PLAN.md §6/§7 Phase 6: this should already nearly be the print
+   stylesheet, since the design is monochrome and typographic. What print
+   needs on top: strip every piece of app chrome (panes, banners, popovers,
+   buttons), guarantee true black-on-white regardless of screen palette,
+   keep code/tables/callouts from splitting across a page break, keep a
+   heading from being orphaned at the bottom of a page, sensible page
+   margins, and no expanded-URL-after-link noise — this is a document to
+   read, not a hyperlink reference. */
 
 @media print {
+  /* True black-on-white for print. Every token below (hairlines, code
+     fills, callout fills) derives from these, so this one override carries
+     through the whole stylesheet without duplicating rules. */
+  :root {
+    --paper: #ffffff;
+    --paper-2: #ffffff;
+    --paper-3: #f0f0f0;
+    --ink: #000000;
+    --graphite: #2b2b2b;
+    --graphite-light: #555555;
+  }
+
+  @page {
+    margin: 2.2cm 2cm;
+  }
+
+  html,
+  body {
+    background: #fff;
+  }
+
+  /* All app chrome: panes, footer, banners, popovers, overlays, dialogs,
+     copy buttons, hover-only affordances. The document is the only thing
+     that prints. */
   .pane-tree,
   .pane-toc,
   .footer-chrome,
+  .conflict-banner,
+  .link-popover,
+  .search-panel,
+  .quick-switcher-backdrop,
+  .quick-switcher,
+  .new-file-dialog,
   .code-copy {
     display: none !important;
   }
 
+  .shell {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
   .pane-doc {
-    overflow: visible;
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  .doc-scroll-host {
+    overflow: visible !important;
+    height: auto !important;
+    /* Print at a predictable 100% regardless of the on-screen ⌘+/⌘− zoom
+       level — pagination should be the same PDF every time. */
+    font-size: 1em !important;
   }
 
   .reader {
@@ -394,5 +448,67 @@
 
   .reader.animate > * {
     animation: none !important;
+  }
+
+  /* Never split a code block, table or callout across a page break. */
+  .code-block,
+  .reader table,
+  .callout,
+  .mermaid-block,
+  .katex-display {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* A PDF page can't be scrolled sideways — the screen's overflow-x: auto
+     would silently clip long lines instead. Wrap instead of truncating. */
+  .code-block pre {
+    overflow-x: visible;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Don't let a heading print alone at the bottom of a page with its
+     content pushed to the next one. */
+  .reader h1,
+  .reader h2,
+  .reader h3,
+  .reader h4,
+  .reader h5,
+  .reader h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* This is a reading document, not a link reference — never expand
+     hrefs after links (a common print-stylesheet convention we deliberately
+     opt out of). */
+  .reader a[href]::after {
+    content: none !important;
+  }
+
+  .reader a {
+    text-decoration: none;
+  }
+
+  .reader a.broken-link,
+  .reader a.external-link {
+    text-decoration: underline;
+  }
+
+  /* Frontmatter is a collapsed-by-default <details> on screen; a PDF has
+     no way to click it open, so print it as plain, always-visible metadata
+     instead of an interactive disclosure. (Overrides the UA stylesheet's
+     `details:not([open]) > *:not(summary) { display: none }`.) */
+  .frontmatter {
+    background: none;
+  }
+
+  .frontmatter summary {
+    display: none;
+  }
+
+  .frontmatter dl {
+    display: grid !important;
   }
 }

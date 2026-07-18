@@ -44,6 +44,14 @@ function stemOf(path: string): string {
   return name.replace(/\.(md|markdown)$/i, "").toLowerCase();
 }
 
+/** Case-preserving filename stem (unlike stemOf, which lowercases for
+ * link-index matching) — used for the default `# Title` heading a new file
+ * is created with, mirroring the Rust side's `file_stem()` verbatim. */
+function rawStemOf(path: string): string {
+  const name = path.split("/").pop() ?? path;
+  return name.replace(/\.(md|markdown)$/i, "");
+}
+
 /** Build a TreeNode[] (same shape read_tree returns) from a flat list of
  * root-relative file paths, synthesising directory nodes as needed. */
 function buildTree(paths: string[]): TreeNode[] {
@@ -183,17 +191,65 @@ export const vault = {
     return browserFiles.has(path);
   },
 
-  /** Create a new file (the broken-wikilink "create" flow). Tauri mode
-   * writes through the one sanctioned path, ipc.writeFile — write_file
-   * skips its mtime conflict check when the file doesn't exist yet
-   * (src-tauri/src/commands.rs), so expectedMtimeMs: 0 is safe for a brand
-   * new path. Browser mode just adds it to the in-memory map. */
-  async createFile(path: string, content: string): Promise<void> {
+  /** Create a new file with caller-supplied content (the broken-wikilink
+   * "create" flow, which title-cases the wikilink text rather than using
+   * the plain filename stem — see linkRouter.ts). Tauri mode writes through
+   * the one sanctioned path, ipc.writeFile — write_file skips its mtime
+   * conflict check when the file doesn't exist yet (src-tauri/src/
+   * commands.rs), so expectedMtimeMs: 0 is safe for a brand new path.
+   * Browser mode just adds it to the in-memory map. */
+  async createFileWithContent(path: string, content: string): Promise<void> {
     if (isTauri()) {
       await ipc.writeFile(path, content, 0);
       return;
     }
     browserFiles.set(path, { content, mtimeMs: nextBrowserMtime++ });
+  },
+
+  /** Create a new file (⌘N / the New File dialog and menu item): a minimal
+   * `# Title\n` derived from the filename stem, refusing if the path
+   * already exists. Mirrors ipc.createFile's Rust semantics — see
+   * src-tauri/src/commands.rs's create_file, which reuses the same
+   * atomic-write helper as write_file. */
+  async createFile(path: string): Promise<{ content: string; mtimeMs: number }> {
+    if (isTauri()) return ipc.createFile(path);
+    if (browserFiles.has(path)) {
+      const err: ConflictError = { kind: "conflict", currentMtimeMs: browserFiles.get(path)!.mtimeMs };
+      throw err;
+    }
+    const content = `# ${rawStemOf(path)}\n`;
+    const mtimeMs = nextBrowserMtime++;
+    browserFiles.set(path, { content, mtimeMs });
+    return { content, mtimeMs };
+  },
+
+  /** Rename/move a file within the vault. Refuses if the target already
+   * exists. Mirrors ipc.renameFile's Rust semantics (both paths resolved
+   * and checked against the root there). */
+  async renameFile(from: string, to: string): Promise<void> {
+    if (isTauri()) {
+      await ipc.renameFile(from, to);
+      return;
+    }
+    if (!browserFiles.has(from)) {
+      throw new Error(`folio: file not found in browser vault: ${from}`);
+    }
+    if (browserFiles.has(to)) {
+      throw new Error(`folio: target already exists: ${to}`);
+    }
+    const file = browserFiles.get(from)!;
+    browserFiles.delete(from);
+    browserFiles.set(to, file);
+  },
+
+  /** Move a file to the system bin (never a hard delete — see
+   * src-tauri/src/commands.rs's delete_file, which uses the `trash` crate). */
+  async deleteFile(path: string): Promise<void> {
+    if (isTauri()) {
+      await ipc.deleteFile(path);
+      return;
+    }
+    browserFiles.delete(path);
   },
 
   /**
