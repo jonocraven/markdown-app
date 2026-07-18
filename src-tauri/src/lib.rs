@@ -14,10 +14,16 @@ use tauri::{AppHandle, Wry};
 /// desktop targets — `tauri::menu` itself is `#[cfg(desktop)]`-gated.
 ///
 /// Accelerators are set ONLY on items with no existing frontend keydown
-/// handler (New File, Open Folder, Actual Size) — everything else (edit
-/// toggle, history, zoom, quick open, search) is already bound in
+/// handler (New File, Open Folder, Actual Size, Print) — everything else
+/// (edit toggle, history, zoom, quick open, search) is already bound in
 /// App.tsx's keydown listener, so giving those menu items an accelerator
 /// too would double-fire the action.
+///
+/// Print specifically: there is no OS-level "⌘P prints the frontmost
+/// window" behaviour to preserve here — WKWebView doesn't bind it itself,
+/// unlike a real browser tab. It only works because this menu item claims
+/// the accelerator and App.tsx's onMenuEvent calls `window.print()` when it
+/// fires (see the "print" case below).
 #[cfg(desktop)]
 fn build_menu(app: &AppHandle<Wry>) -> tauri::Result<Menu<Wry>> {
     let about = AboutMetadataBuilder::new()
@@ -44,9 +50,14 @@ fn build_menu(app: &AppHandle<Wry>) -> tauri::Result<Menu<Wry>> {
     let open_folder = MenuItemBuilder::with_id("open-folder", "Open Folder…")
         .accelerator("CmdOrCtrl+Shift+O")
         .build(app)?;
+    let print_item = MenuItemBuilder::with_id("print", "Print…")
+        .accelerator("CmdOrCtrl+P")
+        .build(app)?;
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&new_file)
         .item(&open_folder)
+        .separator()
+        .item(&print_item)
         .separator()
         .close_window()
         .build()?;

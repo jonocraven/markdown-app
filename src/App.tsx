@@ -570,8 +570,11 @@ export default function App() {
 
   // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save, ⇧⌘F
   // search, ⌘K quick switcher. Both Cmd (macOS) and Ctrl (testing) work.
-  // Deliberately NOT bound: ⌘P — left free for the system's native Print,
-  // since a preventDefault()'d ⌘P here would block ⌘P from ever printing.
+  // Deliberately NOT bound: ⌘P — unlike a real browser tab, WKWebView has no
+  // built-in "⌘P prints" behaviour of its own to preserve; it only works via
+  // the native File > Print… menu item's accelerator (see build_menu in
+  // lib.rs) firing the "print" case in the menu-event listener below, which
+  // calls window.print(). Binding ⌘P here too would double-fire it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -671,6 +674,9 @@ export default function App() {
           case "new-file":
             setNewFileError(null);
             setNewFileOpen(true);
+            break;
+          case "print":
+            window.print();
             break;
           default:
             break;
