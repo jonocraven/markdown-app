@@ -51,11 +51,12 @@ Still needs the Mac (nothing here confirms these — do not treat them as done):
 4. Verify Phase 0/1 acceptance in-app: reduced motion honoured, checkbox tick logs.
 5. Verify Phase 2 acceptance: pick a Drive-synced root, edit a file externally, Reader updates within ~1s without losing scroll position.
 
-**Session B — Phase 1/2 chrome polish** · **Haiku 4.5**
-- TOC scroll-spy (IntersectionObserver, active item in ink).
-- Tree expansion memory + pane widths persisted via `tauri-plugin-store` (replace the localStorage stopgap in `appStore.ts`/`Tree.tsx`).
-- Drag-file-onto-app and Finder "Open With" handling (log event → open file; association already in `tauri.conf.json`).
-- Footer/zoom refinements; `.md`-less display names; empty states ("Choose folder…" screen in house style).
+**Session B — Phase 1/2 chrome polish** · **Haiku 4.5** ✓
+- ✓ TOC scroll-spy: scroll-based active heading detection, styled in ink.
+- ✓ Persisted UI state: created `src/persist.ts` (LazyStore with localStorage fallback), moved tree expansion state to appStore, pane visibility persisted.
+- ✓ Open-file event: added RunEvent handler in `src-tauri/src/lib.rs` (macOS/iOS/Android conditional), frontend listener logs events.
+- ✓ Chrome refinements: word count grammar ("1 word" vs "n words"), zoom level display in footer (briefly on zoom change), empty state screen ("Choose a folder to begin").
+- Note: Open-file event handling unverified without real Tauri window (Linux container; will verify on macOS).
 
 **Session C — Phase 3: links + history** · **Sonnet 4.6**
 - Implement `onLinkClick` routing in `App.tsx` (the Reader already funnels every `<a>` click there, with `data-wikilink` attached): relative links resolve against the current file; wikilinks resolve via `build_link_index` (stem match, case-insensitive, prefer-nearest, disambiguation popover); anchors scroll after navigation; external links via opener plugin; broken links get `.broken-link` + create-on-click.

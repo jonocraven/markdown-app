@@ -29,6 +29,11 @@ export default function App() {
   const [doc, setDoc] = useState<RenderedDoc | null>(null);
   const [zoom, setZoom] = useState(1);
 
+  // Hydrate persisted UI state (pane visibility, tree expansion).
+  useEffect(() => {
+    useAppStore.getState().hydratePersistedState();
+  }, []);
+
   // Browser mode (plain `vite dev`): render the bundled torture-test sample
   // so typography work needs no Tauri shell.
   useEffect(() => {
@@ -52,6 +57,18 @@ export default function App() {
       cancelled = true;
     };
   }, [setRoot, setTree]);
+
+  // Listen for open-file event (Finder "Open With" or drag-onto-app).
+  // Full open-workspace behaviour lands in a later phase; for now just log it.
+  useEffect(() => {
+    if (!isTauri()) return;
+    // Dynamic import to avoid issues in browser mode
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen<{ paths: string[] }>("open-file", (event) => {
+        console.log("[folio] open-file event:", event.payload.paths);
+      });
+    });
+  }, []);
 
   // Load the current file whenever navigation changes it.
   useEffect(() => {
@@ -115,6 +132,20 @@ export default function App() {
 
   const displayPath = isTauri() ? (currentPath ?? "") : "samples/torture-test.md";
 
+  // Show zoom level briefly when it changes
+  const [showZoomBriefly, setShowZoomBriefly] = useState(false);
+  useEffect(() => {
+    setShowZoomBriefly(true);
+    const t = setTimeout(() => setShowZoomBriefly(false), 1500);
+    return () => clearTimeout(t);
+  }, [zoom]);
+
+  const wordCountText = doc
+    ? doc.wordCount === 1
+      ? "1 word"
+      : `${doc.wordCount.toLocaleString("en-GB")} words`
+    : "";
+
   return (
     <div className="shell">
       {showTree && (
@@ -130,24 +161,38 @@ export default function App() {
       )}
 
       <main className="pane-doc">
-        <div style={{ flex: 1, overflowY: "auto", fontSize: `${zoom}em` }}>
-          {source !== null && (
-            <Reader source={source} path={displayPath} onRendered={setDoc} />
-          )}
-        </div>
-        <footer className="footer-chrome">
-          <span>
-            <button onClick={() => togglePane("tree")} aria-label="Toggle file tree">
-              <PanelLeft size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
-            </button>
-          </span>
-          <span>{doc ? `${doc.wordCount.toLocaleString("en-GB")} words` : ""}</span>
-          <span>
-            <button onClick={() => togglePane("toc")} aria-label="Toggle contents">
-              <PanelRight size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
-            </button>
-          </span>
-        </footer>
+        {!isTauri() || currentPath ? (
+          <>
+            <div style={{ flex: 1, overflowY: "auto", fontSize: `${zoom}em` }}>
+              {source !== null && (
+                <Reader source={source} path={displayPath} onRendered={setDoc} />
+              )}
+            </div>
+            <footer className="footer-chrome">
+              <span>
+                <button onClick={() => togglePane("tree")} aria-label="Toggle file tree">
+                  <PanelLeft size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
+                </button>
+              </span>
+              <span>
+                {showZoomBriefly && zoom !== 1 ? (
+                  <span style={{ fontSize: "11px", opacity: 0.6 }}>{Math.round(zoom * 100)}%</span>
+                ) : (
+                  wordCountText
+                )}
+              </span>
+              <span>
+                <button onClick={() => togglePane("toc")} aria-label="Toggle contents">
+                  <PanelRight size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
+                </button>
+              </span>
+            </footer>
+          </>
+        ) : (
+          <div className="empty-state">
+            <p>Choose a folder to begin</p>
+          </div>
+        )}
       </main>
 
       {showToc && (

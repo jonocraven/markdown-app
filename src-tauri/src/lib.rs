@@ -3,6 +3,8 @@ mod commands;
 use commands::{AppData, AppState};
 use std::sync::Mutex;
 use tauri::Manager;
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+use tauri::{Emitter, RunEvent};
 
 pub fn run() {
     tauri::Builder::default()
@@ -34,6 +36,27 @@ pub fn run() {
             commands::search,
             commands::build_link_index,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Folio");
+        .build(tauri::generate_context!())
+        .expect("error while building Folio")
+        .run(|_app_handle, event| {
+            #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
+            if let RunEvent::Opened { urls } = event {
+                // Emit open-file event to the frontend with the file paths
+                let paths: Vec<String> = urls
+                    .iter()
+                    .filter_map(|url| {
+                        // Convert file:// URLs to paths
+                        url.to_file_path().ok().and_then(|p| {
+                            p.to_str().map(|s| s.to_string())
+                        })
+                    })
+                    .collect();
+
+                if !paths.is_empty() {
+                    let _ = _app_handle.emit("open-file", serde_json::json!({ "paths": paths }));
+                }
+            }
+            #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "android")))]
+            let _ = event;
+        });
 }

@@ -1,9 +1,12 @@
 import { create } from "zustand";
 import type { TreeNode } from "../ipc";
+import { persistGet, persistSet } from "../persist";
 
 /**
  * App state, kept deliberately boring. "Navigation" is setting currentPath;
- * back/forward is a plain stack pair. No router.
+ * back/forward is a plain stack pair. No router. Persisted state
+ * (pane visibility, tree expansion) uses tauri-plugin-store with
+ * localStorage fallback via persist.ts.
  */
 interface AppState {
   rootPath: string | null;
@@ -16,9 +19,12 @@ interface AppState {
   back: string[];
   forward: string[];
 
-  // Panes (persisted to localStorage for now; tauri-plugin-store in Phase 2)
+  // Panes (persisted via tauri-plugin-store / localStorage)
   showTree: boolean;
   showToc: boolean;
+
+  // Tree expansion state (persisted, keyed by root path)
+  collapsedNodes: Set<string>;
 
   setRoot: (path: string, name: string) => void;
   setTree: (tree: TreeNode[]) => void;
@@ -27,12 +33,9 @@ interface AppState {
   goForward: () => void;
   toggleEditing: () => void;
   togglePane: (pane: "tree" | "toc") => void;
+  setCollapsedNodes: (nodes: Set<string>) => void;
+  hydratePersistedState: () => Promise<void>;
 }
-
-const persistedBool = (key: string, fallback: boolean) => {
-  const v = localStorage.getItem(key);
-  return v === null ? fallback : v === "1";
-};
 
 export const useAppStore = create<AppState>((set, get) => ({
   rootPath: null,
@@ -42,8 +45,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   editing: false,
   back: [],
   forward: [],
-  showTree: persistedBool("folio.showTree", true),
-  showToc: persistedBool("folio.showToc", true),
+  showTree: true,
+  showToc: true,
+  collapsedNodes: new Set(),
 
   setRoot: (path, name) =>
     set({ rootPath: path, rootName: name, currentPath: null, back: [], forward: [] }),
@@ -91,7 +95,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => {
       const key = pane === "tree" ? "showTree" : "showToc";
       const value = !s[key];
-      localStorage.setItem(`folio.${key}`, value ? "1" : "0");
+      persistSet(`folio.${key}`, value);
       return { [key]: value };
     }),
+
+  setCollapsedNodes: (nodes) => set({ collapsedNodes: nodes }),
+
+  hydratePersistedState: async () => {
+    const showTree = await persistGet("folio.showTree", true);
+    const showToc = await persistGet("folio.showToc", true);
+    const collapsedNodesArray = await persistGet<string[]>("folio.collapsedNodes", []);
+    set({
+      showTree,
+      showToc,
+      collapsedNodes: new Set(collapsedNodesArray),
+    });
+  },
 }));

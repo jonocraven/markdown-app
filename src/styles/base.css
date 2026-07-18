@@ -140,12 +140,34 @@ button {
   color: var(--ink);
 }
 
+.toc-item.toc-active {
+  color: var(--ink);
+}
+
 .toc-depth-3 {
   padding-left: 14px;
 }
 
 .toc-depth-4 {
   padding-left: 28px;
+}
+
+/* ---- Empty state ---- */
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  text-transform: uppercase;
+  color: var(--graphite-light);
+  letter-spacing: 0.08em;
+}
+
+.empty-state p {
+  margin: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

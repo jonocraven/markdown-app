@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ChevronRight, ChevronDown, FileText } from "lucide-react";
 import type { TreeNode } from "../ipc";
+import { useAppStore } from "../stores/appStore";
+import { persistSet } from "../persist";
 
 interface TreeProps {
   nodes: TreeNode[];
@@ -8,10 +10,10 @@ interface TreeProps {
   onOpen: (path: string) => void;
 }
 
-/** File tree sidebar. Expansion memory persists per root in Phase 2 via
- * tauri-plugin-store; session-local for now. */
+/** File tree sidebar. Expansion state persists via tauri-plugin-store /
+ * localStorage (hydrated on app startup). */
 export function Tree({ nodes, currentPath, onOpen }: TreeProps) {
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const { collapsedNodes, setCollapsedNodes } = useAppStore();
 
   const childrenOf = useMemo(() => {
     const map = new Map<string | null, TreeNode[]>();
@@ -29,12 +31,12 @@ export function Tree({ nodes, currentPath, onOpen }: TreeProps) {
   }, [nodes]);
 
   const toggle = (path: string) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
+    const next = new Set(collapsedNodes);
+    if (next.has(path)) next.delete(path);
+    else next.add(path);
+    setCollapsedNodes(next);
+    // Persist the updated state
+    persistSet("folio.collapsedNodes", Array.from(next));
   };
 
   const renderLevel = (parent: string | null, depth: number): React.ReactNode =>
@@ -43,14 +45,14 @@ export function Tree({ nodes, currentPath, onOpen }: TreeProps) {
         {node.isDir ? (
           <>
             <button className="tree-item" onClick={() => toggle(node.path)}>
-              {collapsed.has(node.path) ? (
+              {collapsedNodes.has(node.path) ? (
                 <ChevronRight size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />
               ) : (
                 <ChevronDown size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />
               )}{" "}
               {node.name}
             </button>
-            {!collapsed.has(node.path) && renderLevel(node.path, depth + 1)}
+            {!collapsedNodes.has(node.path) && renderLevel(node.path, depth + 1)}
           </>
         ) : (
           <button
