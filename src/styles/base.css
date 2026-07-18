@@ -811,6 +811,73 @@ button {
   margin: 0 0 14px;
 }
 
+/* ---- Android folder browser (PLAN-ANDROID.md §2/§6) ---- */
+
+.folder-browser-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+}
+
+.folder-browser-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+}
+
+.folder-browser-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: var(--border-faint);
+}
+
+.folder-browser-crumbs {
+  flex-shrink: 0;
+}
+
+.folder-browser-list {
+  flex: 1;
+}
+
+.folder-browser-actions {
+  flex-shrink: 0;
+  padding-top: 14px;
+  margin-top: 8px;
+  border-top: var(--border-faint);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.folder-browser-use {
+  padding: 6px 14px;
+}
+
+.folder-browser-explainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 46ch;
+  margin: 0 auto;
+}
+
+.folder-browser-explainer-text {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite);
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+
 /* ---- Tree row rename input (right-click → Rename) ---- */
 
 .tree-rename-input {

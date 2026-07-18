@@ -10,6 +10,7 @@ use ignore::WalkBuilder;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
+#[cfg(not(target_os = "android"))]
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_store::StoreExt;
 
@@ -48,6 +49,13 @@ impl From<std::io::Error> for CommandError {
 pub struct RootInfo {
     pub path: String,
     pub name: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntry {
+    pub name: String,
+    pub path: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -157,6 +165,11 @@ fn is_markdown(path: &Path) -> bool {
 // runs inline on the thread that received the IPC call (the main thread on
 // macOS), so it would be waiting on itself — a deadlock, seen as a freeze.
 // Marking the command async moves it onto Tauri's task runtime instead.
+//
+// Desktop only: `blocking_pick_folder` is itself `#[cfg(desktop)]`-gated
+// inside tauri-plugin-dialog, so this doesn't compile for Android at all —
+// which is fine, since Android never calls it (see the stub below).
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn pick_root(
     app: AppHandle,
@@ -180,6 +193,24 @@ pub async fn pick_root(
     }))
 }
 
+/// Android has no native folder-pick dialog to call — `blocking_pick_folder`
+/// (used above) is itself desktop-only in tauri-plugin-dialog, and per
+/// PLAN-ANDROID.md §2 folder picking on Android goes through the in-app
+/// FolderBrowser + `set_root` instead. This stub exists only so `pick_root`
+/// stays a valid symbol in `invoke_handler`'s command list without forking
+/// that list per platform; the frontend's `isAndroid()` branch (src/App.tsx)
+/// means it is never actually invoked on Android.
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn pick_root(
+    _app: AppHandle,
+    _state: State<'_, AppState>,
+) -> Result<Option<RootInfo>, CommandError> {
+    Err(CommandError::Io {
+        message: "pick_root is unavailable on Android — use set_root instead".to_string(),
+    })
+}
+
 #[tauri::command]
 pub fn current_root(state: State<AppState>) -> Option<RootInfo> {
     let guard = state.lock().unwrap();
@@ -190,6 +221,72 @@ pub fn current_root(state: State<AppState>) -> Option<RootInfo> {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default(),
     })
+}
+
+/// Commit a folder chosen through the in-app folder browser (Android —
+/// PLAN-ANDROID.md §2) as the vault root. Same persistence and state update
+/// as `pick_root`, minus the native dialog: validates the path is an
+/// existing directory, persists it via `now_store_root` exactly as
+/// `pick_root` does, and updates `state.root`. `pick_root` itself is
+/// untouched and remains the desktop path.
+#[tauri::command]
+pub fn set_root(
+    app: AppHandle,
+    state: State<AppState>,
+    path: String,
+) -> Result<RootInfo, CommandError> {
+    let path = PathBuf::from(path);
+    if !path.is_dir() {
+        return Err(CommandError::Io {
+            message: "not a directory".to_string(),
+        });
+    }
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string_lossy().to_string());
+    now_store_root(&app, &path);
+    state.lock().unwrap().root = Some(path.clone());
+    Ok(RootInfo {
+        path: path.to_string_lossy().to_string(),
+        name,
+    })
+}
+
+/// List only the subdirectories of `path` (an absolute path), skipping
+/// hidden ones (name starts with '.'), sorted case-insensitively by name.
+/// This is the in-app folder picker used BEFORE a root exists (Android's
+/// All-Files-Access model, PLAN-ANDROID.md §2), so it deliberately does NOT
+/// go through `resolve()` — there is no root yet to resolve against.
+/// Read-only; never touches a file. Per-entry read errors are skipped
+/// rather than failing the whole listing; an `Io` error is returned only if
+/// `path` itself can't be read.
+#[tauri::command]
+pub fn list_dirs(path: String) -> Result<Vec<DirEntry>, CommandError> {
+    let dir = PathBuf::from(&path);
+    let read_dir = std::fs::read_dir(&dir)?;
+
+    let mut entries = Vec::new();
+    for entry in read_dir {
+        let Ok(entry) = entry else { continue };
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        entries.push(DirEntry {
+            name,
+            path: entry.path().to_string_lossy().to_string(),
+        });
+    }
+
+    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(entries)
 }
 
 /// Recursive listing of markdown files and the directories that lead to
@@ -376,6 +473,7 @@ pub fn rename_file(state: State<AppState>, from: String, to: String) -> Result<(
 
 /// Move a file to the system trash/bin rather than deleting it outright —
 /// mistakes should be recoverable from Finder's Bin, not gone forever.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn delete_file(state: State<AppState>, path: String) -> Result<(), CommandError> {
     let (_root, abs) = resolve(&state, &path)?;
@@ -389,6 +487,53 @@ pub fn delete_file(state: State<AppState>, path: String) -> Result<(), CommandEr
     trash::delete(&abs).map_err(|e| CommandError::Io {
         message: e.to_string(),
     })?;
+    Ok(())
+}
+
+/// Android has no `trash` backend (the crate has no Android implementation,
+/// PLAN-ANDROID.md §2) — move the file into a hidden `.mdreader-bin/`
+/// directory at the vault root instead. It's a rename, not a new write
+/// path: the tree walker already skips hidden directories (`read_tree`'s
+/// `WalkBuilder::hidden(true)`), so the bin never appears in the UI, and it
+/// syncs like any other file — recoverable from any device (SYNC.md).
+/// On a name collision inside the bin, a millis-since-epoch suffix is
+/// inserted before the extension (e.g. `note.1721260000000.md`).
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn delete_file(state: State<AppState>, path: String) -> Result<(), CommandError> {
+    let (root, abs) = resolve(&state, &path)?;
+
+    if !abs.exists() {
+        return Err(CommandError::Io {
+            message: format!("{path} does not exist"),
+        });
+    }
+
+    let bin_dir = root.join(".mdreader-bin");
+    std::fs::create_dir_all(&bin_dir)?;
+
+    let file_name = abs
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let mut target = bin_dir.join(&file_name);
+    if target.exists() {
+        let millis = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let stem = abs
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "file".to_string());
+        let new_name = match abs.extension().and_then(|e| e.to_str()) {
+            Some(ext) => format!("{stem}.{millis}.{ext}"),
+            None => format!("{stem}.{millis}"),
+        };
+        target = bin_dir.join(new_name);
+    }
+
+    std::fs::rename(&abs, &target)?;
     Ok(())
 }
 

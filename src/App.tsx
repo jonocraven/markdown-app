@@ -10,12 +10,14 @@ import { LinkPopover } from "./components/LinkPopover";
 import { SearchPanel } from "./components/SearchPanel";
 import { QuickSwitcher } from "./components/QuickSwitcher";
 import { NewFileDialog } from "./components/NewFileDialog";
+import { FolderBrowser } from "./components/FolderBrowser";
 import { useAppStore } from "./stores/appStore";
 import { ipc, isTauri } from "./ipc";
 import { vault, isConflictError } from "./vault";
 import { setTaskMarker } from "./taskMarkers";
 import { resolveLinkClick } from "./linkRouter";
 import { dirname, sanitizeFileName } from "./pathUtils";
+import { isAndroid } from "./platform";
 import type { RenderedDoc } from "./markdown/pipeline";
 
 const ZOOM_STEPS = [0.85, 1, 1.15, 1.3, 1.5];
@@ -77,6 +79,7 @@ export default function App() {
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFileError, setNewFileError] = useState<string | null>(null);
+  const [folderBrowserOpen, setFolderBrowserOpen] = useState(false);
 
   // ---- Phase 4: editing / saving / conflict state ----
   // mtimeMs and dirty are plain refs — nothing renders their raw value
@@ -313,13 +316,75 @@ export default function App() {
     return unsubscribe;
   }, [setTree]);
 
+  // Resume-refresh (PLAN-ANDROID.md §3 "Lifecycle"): Android suspends
+  // backgrounded apps and the fs watcher misses events while suspended, so
+  // on resume (`visibilitychange` -> visible) re-run the tree load and
+  // re-read the open file, applying new content only if its mtime actually
+  // moved (a no-op otherwise — cheap). Never touches an unsaved editor
+  // buffer, mirroring the external-change effect above: the existing
+  // conflict banner covers a collision at save time instead. This is one
+  // code path for both platforms — `visibilitychange` rarely fires on
+  // desktop, and when it does this is a cheap no-op, so desktop behaviour
+  // is unaffected in practice; no isAndroid()/isTauri() fork needed here.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      vault.listTree().then(setTree);
+      const open = useAppStore.getState().currentPath;
+      if (!open || dirtyRef.current) return;
+      vault
+        .readFile(open)
+        .then(({ content, mtimeMs: mtime }) => {
+          if (mtime === mtimeRef.current) return; // nothing changed — no-op
+          setSource(content);
+          setMtimeMs(mtime);
+          if (useAppStore.getState().editing) {
+            setDraft(content);
+            setResetSeq((n) => n + 1);
+          }
+        })
+        .catch(() => {
+          // The open file may have been removed while suspended (e.g. by
+          // Autosync) — the tree reload above already reflects that; there
+          // is nothing further to reconcile here.
+        });
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [setTree]);
+
+  // Folder picking branches on isAndroid() in exactly this one place
+  // (PLAN-ANDROID.md §2/§6): Android's native dialog only returns useless
+  // SAF content:// URIs, so it opens the in-app FolderBrowser instead of
+  // the desktop pick_root/dialog path. Both entry points that used to call
+  // pick_root directly — the tree pane's "Choose folder…" button and the
+  // menu's "open-folder" id — go through this same pickRoot, so the branch
+  // stays in one place.
   const pickRoot = useCallback(async () => {
+    if (isAndroid()) {
+      setFolderBrowserOpen(true);
+      return;
+    }
     const root = await ipc.pickRoot();
     if (!root) return;
     setRoot(root.path, root.name);
     setTree(await vault.listTree());
     await ipc.watchRoot();
   }, [setRoot, setTree]);
+
+  /** FolderBrowser's "Use this folder" action lands here — the Android
+   * equivalent of pickRoot's desktop branch above (set_root instead of
+   * pick_root/dialog, watch_root skipped outside Tauri since there's no
+   * real watcher in browser mode). */
+  const handleFolderChosen = useCallback(
+    async (root: { path: string; name: string }) => {
+      setFolderBrowserOpen(false);
+      setRoot(root.path, root.name);
+      setTree(await vault.listTree());
+      if (isTauri()) await ipc.watchRoot();
+    },
+    [setRoot, setTree],
+  );
 
   // ---- File ops (PLAN.md §4/§7 Phase 6): create / rename / delete-to-bin ----
 
@@ -722,7 +787,14 @@ export default function App() {
       ) : (
         showTree && (
           <aside className="pane-tree">
-            {isTauri() && (
+            {/* isAndroid() is included here (not just isTauri()) so this
+                entry point is reachable in browser mode under the
+                `?platform=android` override — this container has no real
+                Android device, so that's the only way to drive the
+                FolderBrowser in the Playwright/Chromium test bed. In a real
+                Tauri build the two conditions never disagree: isAndroid()
+                is only ever true when isTauri() is too. */}
+            {(isTauri() || isAndroid()) && (
               <button className="tree-item" onClick={pickRoot} style={{ marginBottom: 4 }}>
                 <FolderOpen size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />{" "}
                 {rootName ?? "Choose folder…"}
@@ -895,6 +967,10 @@ export default function App() {
         }}
         onCreate={handleCreateFile}
       />
+
+      {folderBrowserOpen && (
+        <FolderBrowser onChoose={handleFolderChosen} onClose={() => setFolderBrowserOpen(false)} />
+      )}
     </div>
   );
 }

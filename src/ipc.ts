@@ -12,6 +12,14 @@ export interface RootInfo {
   name: string;
 }
 
+/** A directory entry returned by `list_dirs` — the Android in-app folder
+ * browser's read-only listing (PLAN-ANDROID.md §2), used before a root
+ * exists. `path` is absolute, unlike TreeNode's root-relative paths. */
+export interface DirEntry {
+  name: string;
+  path: string;
+}
+
 export interface TreeNode {
   path: string; // relative to root
   name: string;
@@ -47,6 +55,12 @@ export function isTauri(): boolean {
 export const ipc = {
   pickRoot: () => invoke<RootInfo | null>("pick_root"),
   currentRoot: () => invoke<RootInfo | null>("current_root"),
+  /** Android's in-app folder browser commits a choice through this instead
+   * of pick_root (see src-tauri/src/commands.rs's set_root). */
+  setRoot: (path: string) => invoke<RootInfo>("set_root", { path }),
+  /** Read-only subdirectory listing for the Android folder browser — does
+   * NOT go through the vault root (there may not be one yet). */
+  listDirs: (path: string) => invoke<DirEntry[]>("list_dirs", { path }),
   readTree: () => invoke<TreeNode[]>("read_tree"),
   readFile: (path: string) => invoke<FileContent>("read_file", { path }),
   writeFile: (path: string, content: string, expectedMtimeMs: number) =>
