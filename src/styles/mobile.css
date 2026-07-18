@@ -46,6 +46,21 @@
   color: var(--accent);
 }
 
+/* "Done" affordance shown in place of the pencil while editing (§3
+   "Editor") — mono-caps text button, house style (cf. .save-button in
+   base.css), not an icon: it's the clearest way to say "this exits and
+   saves" on a touch surface with no ⌘S to fall back on. */
+.app-bar-done {
+  width: auto;
+  padding: 0 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
 .app-bar-title-block {
   flex: 1;
   min-width: 0;

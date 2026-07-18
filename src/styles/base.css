@@ -312,6 +312,15 @@ button {
   white-space: nowrap;
   overflow: hidden;
   transition: background 0.12s var(--ease), color 0.12s var(--ease);
+  /* Long-press opens the context menu on touch (PLAN-ANDROID.md §3) — these
+     stop the platform's own press-and-hold text-selection/callout UI from
+     racing our JS timer. touch-action: manipulation keeps vertical list
+     scrolling and taps working, it only drops double-tap-to-zoom. Harmless
+     on desktop (mouse selection of a button label was never meaningful). */
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .tree-col-item-label {
@@ -412,7 +421,13 @@ button {
 
 .link-popover {
   position: fixed;
-  z-index: 50;
+  /* Above every mobile overlay (drawer/TOC sheet 55-56, overflow 57, the
+     search takeover 58 — see mobile.css) — PLAN-ANDROID.md §3's long-press
+     opens the tree's "tree-menu" kind of THIS component from inside the
+     drawer, so it must out-rank the drawer it's opened from or it renders
+     invisibly underneath it. 50 was fine when the only competing overlay
+     was the desktop tree pane (z-index 30). */
+  z-index: 59;
   min-width: 220px;
   max-width: 340px;
   font-family: var(--font-mono);

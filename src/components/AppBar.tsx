@@ -1,4 +1,4 @@
-import { PanelLeft, Search, Command, Pencil, Eye, MoreVertical } from "lucide-react";
+import { PanelLeft, Search, Command, Pencil, MoreVertical } from "lucide-react";
 
 interface AppBarProps {
   /** File stem (extensionless basename), Jost light — null when nothing's
@@ -21,6 +21,14 @@ interface AppBarProps {
  * edit toggle, overflow). Every action here calls the SAME App.tsx handlers
  * the desktop menu/shortcuts use (zoomIn/zoomOut/handleToggleEditing/etc) —
  * this component only supplies the touch surface.
+ *
+ * While editing, the pencil/eye icon is replaced by a mono-caps "Done" text
+ * button (§3 "Editor") — but it's wired to the SAME onToggleEditing prop the
+ * eye icon used, i.e. App.tsx's handleToggleEditing, which already (a)
+ * flushes any dirty draft through performSave (the exact function ⌘S's
+ * handleSaveNow calls too — no new write path) and (b) turns editing off.
+ * There's no separate "Done" handler in App.tsx; this is a presentation-only
+ * change.
  */
 export function AppBar({
   title,
@@ -50,13 +58,14 @@ export function AppBar({
         <button className="app-bar-btn" onClick={onOpenQuickSwitcher} aria-label="Quick open">
           <Command size={18} strokeWidth={1.5} />
         </button>
-        {path && (
-          <button
-            className={`app-bar-btn${editing ? " active" : ""}`}
-            onClick={onToggleEditing}
-            aria-label={editing ? "Back to reading" : "Edit"}
-          >
-            {editing ? <Eye size={18} strokeWidth={1.5} /> : <Pencil size={18} strokeWidth={1.5} />}
+        {path && editing && (
+          <button className="app-bar-btn app-bar-done" onClick={onToggleEditing} aria-label="Done">
+            Done
+          </button>
+        )}
+        {path && !editing && (
+          <button className="app-bar-btn" onClick={onToggleEditing} aria-label="Edit">
+            <Pencil size={18} strokeWidth={1.5} />
           </button>
         )}
         <button className="app-bar-btn" onClick={onOpenOverflow} aria-label="More">
