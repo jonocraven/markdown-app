@@ -277,7 +277,7 @@ fn atomic_write(abs: &Path, content: &str) -> Result<(), CommandError> {
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
-    let tmp = dir.join(format!(".{file_name}.folio-tmp"));
+    let tmp = dir.join(format!(".{file_name}.mdreader-tmp"));
     std::fs::write(&tmp, content)?;
     std::fs::rename(&tmp, abs)?;
     Ok(())

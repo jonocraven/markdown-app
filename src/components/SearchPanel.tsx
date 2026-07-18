@@ -34,7 +34,7 @@ export function SearchPanel({ open, onClose }: SearchPanelProps) {
         const hits = await vault.search(q);
         setResults(hits);
       } catch (err) {
-        console.error("[folio] search failed:", err);
+        console.error("[markdown-reader] search failed:", err);
         setResults([]);
       } finally {
         setSearching(false);

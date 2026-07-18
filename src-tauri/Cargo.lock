@@ -1040,26 +1040,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
-name = "folio"
-version = "0.1.0"
-dependencies = [
- "grep-regex",
- "grep-searcher",
- "ignore",
- "notify",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-opener",
- "tauri-plugin-persisted-scope",
- "tauri-plugin-store",
- "trash",
-]
-
-[[package]]
 name = "foreign-types"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2114,6 +2094,26 @@ name = "log"
 version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
+
+[[package]]
+name = "markdown-reader"
+version = "0.1.0"
+dependencies = [
+ "grep-regex",
+ "grep-searcher",
+ "ignore",
+ "notify",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-opener",
+ "tauri-plugin-persisted-scope",
+ "tauri-plugin-store",
+ "trash",
+]
 
 [[package]]
 name = "markup5ever"

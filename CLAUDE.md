@@ -1,4 +1,4 @@
-# Folio — markdown viewer/editor (Tauri 2 + React + TS)
+# Markdown Reader — markdown viewer/editor (Tauri 2 + React + TS)
 Read PLAN.md before any work. Current phase: Phase 6 (polish + packaging) COMPLETE
 pending Mac verification — see NEXT_STEPS.md for the pre-ship checklist.
 ✓ App icon, native menu bar (App/File/Edit/View/Go/Window + About), print stylesheet,
@@ -41,7 +41,7 @@ cargo fmt/clippy in src-tauri
   the conflict banner is exercisable in Chromium. `vault.writeFile` is the
   only write path both modes ever use; `vault.onExternalChange` unifies
   Tauri's fs-changed events and the browser-only
-  `window.__folioSimulateExternalEdit(path, content)` Playwright hook.
+  `window.__markdownReaderSimulateExternalEdit(path, content)` Playwright hook.
   App.tsx and src/linkRouter.ts call this, not ipc/isTauri(), directly.
 - src/linkRouter.ts — resolves a link click (relative/wikilink/anchor/
   external) into an action for App.tsx to perform; never touches history

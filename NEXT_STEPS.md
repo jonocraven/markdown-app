@@ -1,4 +1,4 @@
-# Folio — handoff and next steps
+# Markdown Reader — handoff and next steps
 
 *Written at the end of Phase 6 (Session F, July 2026). Read PLAN.md first. Every
 feature in the v1 spec (§4) is now built and verified as far as this Linux
@@ -46,8 +46,8 @@ verification pass, written to run once on the Mac before shipping.*
   `⌘P` — see PLAN.md's correction note — after on-device testing found ⌘P
   intercepted the OS's native Print shortcut).
 - **Polish + packaging (Phase 6, this session).**
-  - **Native menu bar** — `src-tauri/src/lib.rs`'s `build_menu`: App (Folio)
-    menu with About (name "Folio", copyright "© 2026") and the predefined
+  - **Native menu bar** — `src-tauri/src/lib.rs`'s `build_menu`: App (Markdown
+    Reader) menu with About (name "Markdown Reader", copyright "© 2026") and the predefined
     macOS app-menu items (Services, Hide/Hide Others/Show All, Quit); File
     (New File `⌘N`, Open Folder `⌘⇧O`, Close Window); Edit (predefined
     Undo/Redo/Cut/Copy/Paste/Select All — required for text editing to work
@@ -122,13 +122,13 @@ Everything below needs a real window, WKWebView, or a real filesystem — none
 of it can be checked from this Linux container. Work down the list in order;
 each step assumes the previous ones passed.
 
-1. **First boot.** `cd folio && npm install && npm run tauri dev`. Confirm a
+1. **First boot.** `cd markdown-app && npm install && npm run tauri dev`. Confirm a
    styled window opens (not a blank/white screen), the three-pane shell
    renders in the house Monochrome style, and no console errors appear in the
    WKWebView devtools.
 2. **WKWebView rendering pass.** Open `samples/torture-test.md` and compare it
    against the Chromium screenshots taken in this container (scratchpad
-   `audit-*.png`, `folio-*.png`). PLAN.md §8 warns WKWebView is not Chromium —
+   `audit-*.png`, `folio-*.png`, `drill-*.png`). PLAN.md §8 warns WKWebView is not Chromium —
    look specifically at: Shiki code block backgrounds/borders, KaTeX spacing,
    the Mermaid diagram's fills/strokes, `color-mix()` support (the hairline
    `--border-faint` token uses it), and the entrance fade-up animation.
@@ -136,7 +136,7 @@ each step assumes the previous ones passed.
    tree, the watcher, and the root name all come back with no user action.
 4. **Drive-sync live-reload + the real kill-test.** Point the root at a
    Drive-synced folder (or just a plain folder if Drive isn't handy). Edit a
-   file in another app/editor while it's open in Folio — confirm the Reader
+   file in another app/editor while it's open in Markdown Reader — confirm the Reader
    updates within ~1s without losing scroll position. Then run the actual
    kill-test: open a file in the editor, make an edit, then externally
    change the same file on disk (another editor, or `echo >> file.md` from a
@@ -147,16 +147,16 @@ each step assumes the previous ones passed.
    real file).
 5. **Menu bar + About + accelerators.** Confirm the App/File/Edit/View/Go/
    Window menu bar appears and matches the structure documented above. Open
-   About Folio — check it shows "Folio" and "© 2026". Click every custom
+   About Markdown Reader — check it shows "Markdown Reader" and "© 2026". Click every custom
    menu item once and confirm it does what its equivalent keyboard shortcut
    does (and doesn't double-fire if you also press the shortcut). Specifically
    check `⌘N`, `⌘⇧O`, and `⌘0` (Actual Size) — these three have **no**
    frontend keydown handler and are reachable only through the menu, so
    they're the ones most likely to reveal a wiring mistake.
 6. **File associations / Open With / dock-drop.** From Finder: right-click a
-   `.md` file → Open With → Folio (should open the file, and the full
+   `.md` file → Open With → Markdown Reader (should open the file, and the full
    workspace if it's inside the last-used root). Drag a `.md` file onto the
-   Folio dock icon. Both should fire the `open-file` event (already
+   Markdown Reader dock icon. Both should fire the `open-file` event (already
    logged to console from Session B — confirm it still fires, and that a
    drag-and-drop lands on the right file).
 7. **File ops against a real disk.** Create a file via `⌘N`/the New File

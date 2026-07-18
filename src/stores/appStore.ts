@@ -5,7 +5,7 @@ import { persistGet, persistSet } from "../persist";
 /**
  * App state, kept deliberately boring. "Navigation" is setting currentPath;
  * back/forward is a plain stack pair. No router. Persisted state
- * (pane visibility, tree expansion) uses tauri-plugin-store with
+ * (pane visibility, tree expansion, favourites) uses tauri-plugin-store with
  * localStorage fallback via persist.ts.
  */
 interface AppState {
@@ -19,9 +19,18 @@ interface AppState {
   back: string[];
   forward: string[];
 
+  // The folder currently shown in the sidebar's file browser (root-relative,
+  // "" at the vault root) — lifted up out of Tree.tsx so Favourites can jump
+  // the browser to a pinned folder without prop-drilling a callback through
+  // App.tsx.
+  browserDir: string;
+
   // Panes (persisted via tauri-plugin-store / localStorage)
   showTree: boolean;
   showToc: boolean;
+
+  // Pinned files/folders (persisted), root-relative paths, most-recent-last.
+  favourites: string[];
 
   setRoot: (path: string, name: string) => void;
   setTree: (tree: TreeNode[]) => void;
@@ -33,6 +42,8 @@ interface AppState {
   toggleEditing: () => void;
   setEditing: (editing: boolean) => void;
   togglePane: (pane: "tree" | "toc") => void;
+  setBrowserDir: (dir: string) => void;
+  toggleFavourite: (path: string) => void;
   hydratePersistedState: () => Promise<void>;
 }
 
@@ -44,11 +55,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   editing: false,
   back: [],
   forward: [],
+  browserDir: "",
   showTree: true,
   showToc: true,
+  favourites: [],
 
   setRoot: (path, name) =>
-    set({ rootPath: path, rootName: name, currentPath: null, back: [], forward: [] }),
+    set({ rootPath: path, rootName: name, currentPath: null, browserDir: "", back: [], forward: [] }),
 
   setTree: (tree) => set({ tree }),
 
@@ -89,20 +102,29 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // File-ops housekeeping (PLAN.md §4/§7 Phase 6): a rename/delete never
   // pushes history — it fixes up currentPath and the existing back/forward
-  // stacks in place so ⌘[/⌘] keep working across the change.
+  // stacks (and favourites) in place so ⌘[/⌘] and pinned items keep working
+  // across the change.
   renamePath: (oldPath, newPath) =>
     set((s) => ({
       currentPath: s.currentPath === oldPath ? newPath : s.currentPath,
       back: s.back.map((p) => (p === oldPath ? newPath : p)),
       forward: s.forward.map((p) => (p === oldPath ? newPath : p)),
+      favourites: s.favourites.map((p) => (p === oldPath ? newPath : p)),
     })),
 
   removePath: (path) =>
-    set((s) => ({
-      currentPath: s.currentPath === path ? null : s.currentPath,
-      back: s.back.filter((p) => p !== path),
-      forward: s.forward.filter((p) => p !== path),
-    })),
+    set((s) => {
+      const favourites = s.favourites.filter((p) => p !== path);
+      if (favourites.length !== s.favourites.length) {
+        persistSet("markdownReader.favourites", favourites);
+      }
+      return {
+        currentPath: s.currentPath === path ? null : s.currentPath,
+        back: s.back.filter((p) => p !== path),
+        forward: s.forward.filter((p) => p !== path),
+        favourites,
+      };
+    }),
 
   toggleEditing: () => set((s) => ({ editing: !s.editing })),
   setEditing: (editing) => set({ editing }),
@@ -111,13 +133,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => {
       const key = pane === "tree" ? "showTree" : "showToc";
       const value = !s[key];
-      persistSet(`folio.${key}`, value);
+      persistSet(`markdownReader.${key}`, value);
       return { [key]: value };
     }),
 
+  setBrowserDir: (dir) => set({ browserDir: dir }),
+
+  toggleFavourite: (path) =>
+    set((s) => {
+      const favourites = s.favourites.includes(path)
+        ? s.favourites.filter((p) => p !== path)
+        : [...s.favourites, path];
+      persistSet("markdownReader.favourites", favourites);
+      return { favourites };
+    }),
+
   hydratePersistedState: async () => {
-    const showTree = await persistGet("folio.showTree", true);
-    const showToc = await persistGet("folio.showToc", true);
-    set({ showTree, showToc });
+    const showTree = await persistGet("markdownReader.showTree", true);
+    const showToc = await persistGet("markdownReader.showToc", true);
+    const favourites = await persistGet<string[]>("markdownReader.favourites", []);
+    set({ showTree, showToc, favourites });
   },
 }));

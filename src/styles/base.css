@@ -125,6 +125,17 @@ button {
   color: var(--graphite-light);
 }
 
+.footer-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.footer-nav button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 .footer-status {
   display: flex;
   align-items: center;
@@ -177,6 +188,55 @@ button {
 
 .tree-item[aria-current="true"] {
   color: var(--ink);
+  background: var(--paper-2);
+}
+
+/* ---- Favourites: pinned files/folders, shown above the file browser ---- */
+
+.favourites-section {
+  flex-shrink: 0;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: var(--border-faint);
+}
+
+.favourites-list {
+  max-height: 168px;
+  overflow-y: auto;
+  margin: 0 -6px;
+}
+
+.favourite-row {
+  display: flex;
+  align-items: center;
+}
+
+.favourite-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.favourite-unpin {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--graphite-light);
+  font-size: 14px;
+  line-height: 1;
+  border-radius: var(--radius);
+  opacity: 0;
+  transition: opacity 0.12s var(--ease), color 0.12s var(--ease), background 0.12s var(--ease);
+}
+
+.favourite-row:hover .favourite-unpin {
+  opacity: 1;
+}
+
+.favourite-unpin:hover {
+  color: var(--accent);
   background: var(--paper-2);
 }
 
@@ -339,7 +399,7 @@ button {
 
 /* ---- Link popover: wikilink disambiguation, broken-wikilink create offer ---- */
 
-@keyframes folio-popover-in {
+@keyframes mdreader-popover-in {
   from {
     opacity: 0;
     transform: scale(0.96) translateY(2px);
@@ -363,7 +423,7 @@ button {
   border-radius: var(--radius);
   padding: 10px;
   transform-origin: top left;
-  animation: folio-popover-in 0.12s var(--ease) both;
+  animation: mdreader-popover-in 0.12s var(--ease) both;
 }
 
 .link-popover-label {
@@ -415,7 +475,7 @@ button {
 
 /* ---- Search panel (⇧⌘F) ---- */
 
-@keyframes folio-slide-in {
+@keyframes mdreader-slide-in {
   from {
     opacity: 0;
     transform: translateX(-6px);
@@ -437,7 +497,7 @@ button {
   display: flex;
   flex-direction: column;
   z-index: 30;
-  animation: folio-slide-in 0.15s var(--ease) both;
+  animation: mdreader-slide-in 0.15s var(--ease) both;
 }
 
 .search-panel-header {
@@ -574,7 +634,7 @@ button {
 
 /* ---- Quick switcher (⌘K) ---- */
 
-@keyframes folio-fade-in {
+@keyframes mdreader-fade-in {
   from {
     opacity: 0;
   }
@@ -583,7 +643,7 @@ button {
   }
 }
 
-@keyframes folio-pop-in {
+@keyframes mdreader-pop-in {
   from {
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.97) translateY(4px);
@@ -599,7 +659,7 @@ button {
   inset: 0;
   z-index: 40;
   background: rgba(0, 0, 0, 0.3);
-  animation: folio-fade-in 0.15s var(--ease) both;
+  animation: mdreader-fade-in 0.15s var(--ease) both;
 }
 
 .quick-switcher {
@@ -617,7 +677,7 @@ button {
   max-height: 70vh;
   display: flex;
   flex-direction: column;
-  animation: folio-pop-in 0.18s var(--ease) both;
+  animation: mdreader-pop-in 0.18s var(--ease) both;
 }
 
 .quick-switcher-input {
@@ -708,7 +768,7 @@ button {
   border-radius: var(--radius);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   padding: 16px;
-  animation: folio-pop-in 0.18s var(--ease) both;
+  animation: mdreader-pop-in 0.18s var(--ease) both;
 }
 
 .new-file-input {

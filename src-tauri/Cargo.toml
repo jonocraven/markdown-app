@@ -1,11 +1,11 @@
 [package]
-name = "folio"
+name = "markdown-reader"
 version = "0.1.0"
 description = "A beautiful, viewer-first markdown app"
 edition = "2021"
 
 [lib]
-name = "folio_lib"
+name = "markdown_reader_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

@@ -69,7 +69,7 @@ export function Reader({ source, path, onLinkClick, onRendered, onTaskToggle }: 
     if (onLinkClick) {
       onLinkClick(href, wikilink, anchor as HTMLAnchorElement);
     } else {
-      console.log("[folio] link click (no router wired):", { href, wikilink });
+      console.log("[markdown-reader] link click (no router wired):", { href, wikilink });
     }
   };
 

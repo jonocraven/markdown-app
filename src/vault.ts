@@ -109,8 +109,9 @@ const externalChangeListeners = new Set<ExternalChangeHandler>();
 
 /** Bump a browser file's mtime and content without going through the write
  * path — simulates Drive sync or another editor touching the file while
- * Folio has it open, so the conflict banner (and the live-reload path) are
- * exercisable in Chromium. Dev/test-only; see the `window` hook below. */
+ * Markdown Reader has it open, so the conflict banner (and the live-reload
+ * path) are exercisable in Chromium. Dev/test-only; see the `window` hook
+ * below. */
 function simulateExternalEdit(path: string, content: string): void {
   const existing = browserFiles.get(path);
   const mtimeMs = Math.max(nextBrowserMtime++, (existing?.mtimeMs ?? 0) + 1);
@@ -125,12 +126,12 @@ declare global {
      * at `path` changing on disk out from under an open editor, to exercise
      * the conflict banner without a real Tauri window. Does not exist in
      * Tauri mode. */
-    __folioSimulateExternalEdit?: (path: string, content: string) => void;
+    __markdownReaderSimulateExternalEdit?: (path: string, content: string) => void;
   }
 }
 
 if (!isTauri()) {
-  window.__folioSimulateExternalEdit = simulateExternalEdit;
+  window.__markdownReaderSimulateExternalEdit = simulateExternalEdit;
 }
 
 export const vault = {
@@ -144,7 +145,7 @@ export const vault = {
     if (isTauri()) return ipc.readFile(path);
     const file = browserFiles.get(path);
     if (file === undefined) {
-      throw new Error(`folio: file not found in browser vault: ${path}`);
+      throw new Error(`markdown-reader: file not found in browser vault: ${path}`);
     }
     return { content: file.content, mtimeMs: file.mtimeMs };
   },
@@ -232,10 +233,10 @@ export const vault = {
       return;
     }
     if (!browserFiles.has(from)) {
-      throw new Error(`folio: file not found in browser vault: ${from}`);
+      throw new Error(`markdown-reader: file not found in browser vault: ${from}`);
     }
     if (browserFiles.has(to)) {
-      throw new Error(`folio: target already exists: ${to}`);
+      throw new Error(`markdown-reader: target already exists: ${to}`);
     }
     const file = browserFiles.get(from)!;
     browserFiles.delete(from);
@@ -254,7 +255,7 @@ export const vault = {
 
   /**
    * Subscribe to external file changes: real `fs-changed` events in Tauri
-   * mode (Drive sync, another editor), or the `__folioSimulateExternalEdit`
+   * mode (Drive sync, another editor), or the `__markdownReaderSimulateExternalEdit`
    * dev hook in browser mode. Unified so App.tsx never has to branch on
    * `isTauri()` for live-reload/conflict-detection. Returns an unsubscribe
    * function (synchronous, unlike the underlying `ipc.onFsChanged`, which is

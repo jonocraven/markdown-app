@@ -21,12 +21,12 @@ use tauri::{AppHandle, Wry};
 #[cfg(desktop)]
 fn build_menu(app: &AppHandle<Wry>) -> tauri::Result<Menu<Wry>> {
     let about = AboutMetadataBuilder::new()
-        .name(Some("Folio"))
+        .name(Some("Markdown Reader"))
         .copyright(Some("© 2026"))
         .build();
 
     // The first submenu becomes the application menu on macOS.
-    let app_menu = SubmenuBuilder::new(app, "Folio")
+    let app_menu = SubmenuBuilder::new(app, "Markdown Reader")
         .about(Some(about))
         .separator()
         .services()
@@ -164,7 +164,7 @@ pub fn run() {
             commands::build_link_index,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Folio")
+        .expect("error while building Markdown Reader")
         .run(|_app_handle, event| {
             #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
             if let RunEvent::Opened { urls } = event {

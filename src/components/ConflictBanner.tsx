@@ -7,7 +7,8 @@ interface ConflictBannerProps {
 /**
  * Non-modal conflict banner (PLAN.md §4/§8): shown when a write rejects
  * because the file changed on disk since it was last read (Drive sync,
- * another editor, or the browser-mode __folioSimulateExternalEdit hook).
+ * another editor, or the browser-mode __markdownReaderSimulateExternalEdit
+ * hook).
  * House Monochrome style — mono label, hairline ink border, paper3 fill, no
  * colour. The editor (or reader) underneath stays fully usable; this is a
  * strip, not an overlay.

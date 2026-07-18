@@ -1,6 +1,6 @@
 # Vault index
 
-A map of the sample vault used to exercise Folio's link routing and history
+A map of the sample vault used to exercise Markdown Reader's link routing and history
 (PLAN.md §5, §7 Phase 3). Every link style appears somewhere in this vault:
 standard relative links, wikilinks, an anchor link, an ambiguous wikilink
 stem, and a deliberately broken link.

@@ -1,4 +1,4 @@
-# Folio — Android Implementation Plan (Phase 7)
+# Markdown Reader — Android Implementation Plan (Phase 7)
 
 *The companion brief to PLAN.md. Read that first — everything here assumes v1 desktop is built (it is) and describes only what Android adds or changes. Written to be handed directly to Claude Code; work one phase per session.*
 
@@ -28,7 +28,7 @@ For a sideloaded personal app, `MANAGE_EXTERNAL_STORAGE` is permitted, grantable
 Two things do change:
 
 - **Folder picking.** The dialog plugin's picker returns SAF URIs on Android — useless to us. Replace it (Android only) with a small in-app folder browser: a new read-only Rust command `list_dirs(path) -> Vec<DirEntry>` starting at `/storage/emulated/0`, rendered in the house style (mono list, hairline rules), persisting the choice through the existing store exactly as `pick_root` does.
-- **Delete.** The `trash` crate has no Android backend. `#[cfg]`-gate `delete_file`: on Android, move the file to a `.folio-bin/` directory at the root (timestamped suffix on collision). It's a rename, not a new write path; the tree walker already skips hidden directories so the bin never appears in the UI. Note it in SYNC.md — the bin folder syncs like anything else, which is a feature (recoverable from any device).
+- **Delete.** The `trash` crate has no Android backend. `#[cfg]`-gate `delete_file`: on Android, move the file to a `.mdreader-bin/` directory at the root (timestamped suffix on collision). It's a rename, not a new write path; the tree walker already skips hidden directories so the bin never appears in the UI. Note it in SYNC.md — the bin folder syncs like anything else, which is a feature (recoverable from any device).
 
 The SAF/Kotlin bridge is the correct Play-Store architecture and is explicitly **out of scope** — documented here only so nobody half-builds it speculatively. If Play distribution ever matters, that becomes its own plan.
 
@@ -42,7 +42,7 @@ Below ~768px (and always on Android) the three-pane shell becomes:
 - **Search and quick switcher** — full-screen takeovers of the same components, inputs at the top for thumb reach.
 - **Reader** — full width with the same reading measure; on a phone the column naturally fills. The footer chrome (word count) moves into the app bar's document subtitle or disappears — the page is the show.
 
-**The system back button must behave like a browser.** Mirror app navigation into the WebView's own history: on every `navigate()` push a state (`history.pushState`), on overlay open push a state, and handle `popstate` by closing the top overlay if one is open, else `goBack()`. Hardware back then walks Folio history for free and exits the app only from the history root. This must be a Sonnet task — it touches the history store's contract — and it must not disturb desktop behaviour (⌘[/⌘] keep working through the store as now).
+**The system back button must behave like a browser.** Mirror app navigation into the WebView's own history: on every `navigate()` push a state (`history.pushState`), on overlay open push a state, and handle `popstate` by closing the top overlay if one is open, else `goBack()`. Hardware back then walks Markdown Reader history for free and exits the app only from the history root. This must be a Sonnet task — it touches the history store's contract — and it must not disturb desktop behaviour (⌘[/⌘] keep working through the store as now).
 
 **Lifecycle:** Android suspends backgrounded apps and the watcher misses events while suspended. On `visibilitychange → visible`, re-run `read_tree` and re-read the open file (the mtime in the store makes this cheap — content only re-renders if it actually changed). The editor's unsaved buffer is never discarded by this refresh; the existing conflict banner covers the collision case.
 
@@ -60,7 +60,7 @@ Documented in a new `SYNC.md` for future reference, verified once in Phase A4:
 
 1. Desktop: the root lives inside Google Drive (already the case).
 2. Android: install Autosync for Google Drive (or FolderSync); pair the same Drive folder with a local folder, e.g. `/storage/emulated/0/Documents/Notes`; two-way sync.
-3. Folio's root = that local folder. The watcher picks up Autosync's writes like any external edit; the mtime conflict check already guards the edit-during-sync race — that path was built for precisely this (PLAN.md §8).
+3. Markdown Reader's root = that local folder. The watcher picks up Autosync's writes like any external edit; the mtime conflict check already guards the edit-during-sync race — that path was built for precisely this (PLAN.md §8).
 
 Keep the root on internal storage: FAT-formatted SD cards have 2-second mtime granularity, which weakens the conflict check.
 
@@ -73,8 +73,8 @@ Install Android Studio (SDK, NDK, platform-tools), JDK 17, `rustup target add aa
 ✓ The app opens on Android showing the existing shell (desktop-shaped is fine for now) with the empty state. ✓ Desktop `npm run tauri dev` still works from the same checkout.
 
 **Phase A1 — Storage** · *Sonnet 4.6* · *on the Mac*
-`MANAGE_EXTERNAL_STORAGE` in the manifest + a first-run flow that explains why and deep-links to the system "All files access" toggle (the opener plugin can launch the settings intent URI; a tiny Kotlin addition to the generated activity is acceptable if needed); the in-app folder browser on a new `list_dirs` command; `#[cfg(target_os = "android")]` delete-to-`.folio-bin`; resume-refresh on `visibilitychange`.
-✓ Pick a real folder on the device; tree loads; open, edit, save a file; the kill-test (edit externally via `adb shell` mid-edit, then save) raises the conflict banner on-device. ✓ Binned file lands in `.folio-bin/` and vanishes from the tree. ✓ `cargo check`/`clippy` clean for both desktop and Android targets.
+`MANAGE_EXTERNAL_STORAGE` in the manifest + a first-run flow that explains why and deep-links to the system "All files access" toggle (the opener plugin can launch the settings intent URI; a tiny Kotlin addition to the generated activity is acceptable if needed); the in-app folder browser on a new `list_dirs` command; `#[cfg(target_os = "android")]` delete-to-`.mdreader-bin`; resume-refresh on `visibilitychange`.
+✓ Pick a real folder on the device; tree loads; open, edit, save a file; the kill-test (edit externally via `adb shell` mid-edit, then save) raises the conflict banner on-device. ✓ Binned file lands in `.mdreader-bin/` and vanishes from the tree. ✓ `cargo check`/`clippy` clean for both desktop and Android targets.
 
 **Phase A2 — Responsive shell + back button** · *Sonnet 4.6 (shell structure, history↔WebView-history mirroring); Haiku 4.5 (CSS polish)* · *mostly container-testable*
 Single-column layout, app bar, tree drawer, TOC bottom sheet, full-screen search/switcher; `popstate` back-button contract from §3. New `mobiletest.mjs` regression script (Pixel viewport + touch) joins the suite.
@@ -85,8 +85,8 @@ Everything in §3's touch and editor paragraphs.
 ✓ Long-press on a tree row opens the context menu (and right-click still works on desktop). ✓ Editing with the on-screen keyboard keeps the caret visible; "Done" flushes the save. ✓ A 44px audit pass of every interactive element, screenshots reviewed against PLAN.md §6.
 
 **Phase A4 — Intents + sync verification** · *Haiku 4.5 (manifest intent-filter, SYNC.md); Sonnet 4.6 if the open-file path needs work* · *on the Mac*
-Intent-filter for `text/markdown`/`.md` in the manifest so Files → Open With → Folio works, feeding the existing `open-file` event; write SYNC.md per §5; verify the full Drive → Autosync → Folio → edit → back-to-Drive round trip on the device.
-✓ Tapping an `.md` in the Files app opens it in Folio (workspace too, if it's inside the root). ✓ An edit made on the desktop appears on the phone within a sync cycle, and vice versa, with no conflict-banner false positives at rest.
+Intent-filter for `text/markdown`/`.md` in the manifest so Files → Open With → Markdown Reader works, feeding the existing `open-file` event; write SYNC.md per §5; verify the full Drive → Autosync → Markdown Reader → edit → back-to-Drive round trip on the device.
+✓ Tapping an `.md` in the Files app opens it in Markdown Reader (workspace too, if it's inside the root). ✓ An edit made on the desktop appears on the phone within a sync cycle, and vice versa, with no conflict-banner false positives at rest.
 
 **Phase A5 — Packaging** · *Haiku 4.5* · *on the Mac*
 Generate a personal keystore, wire signing into the Gradle config, `npm run tauri android build -- --apk --target aarch64` for a signed release APK; confirm the adaptive icon uses the cream/ink monogram (the Android mipmap set was already generated by `tauri icon` in desktop Phase 6); sensible `versionName`/`versionCode`.
@@ -97,7 +97,7 @@ Generate a personal keystore, wire signing into the Gradle config, `npm run taur
 - **WebView version variance.** Android WebView updates independently of the OS. `color-mix()` (used by the `--border-faint` token) needs WebView ≥111 — fine on any recent device, but check `chrome://webview` version if hairlines vanish; ship a plain-rgba fallback for that one token if it bites.
 - **Process death.** Android can kill the app entirely in the background, not just suspend it. Persisted state (root, panes, tree expansion) already survives via the store; the unsaved editor buffer does not — the 2s autosave makes the window small, but don't add complexity to shrink it further in v1.
 - **Watcher while suspended** misses events — that's what the resume-refresh in A1 is for. Don't try to keep the watcher alive with a foreground service; it's a reader, not a daemon.
-- **Two sync layers interacting.** Drive ↔ Autosync ↔ disk ↔ Folio: the only dangerous window is an external write landing mid-edit, and the mtime conflict banner owns that. Resist any urge to "coordinate" with Autosync.
+- **Two sync layers interacting.** Drive ↔ Autosync ↔ disk ↔ Markdown Reader: the only dangerous window is an external write landing mid-edit, and the mtime conflict banner owns that. Resist any urge to "coordinate" with Autosync.
 - **`gen/android` is generated once, then owned.** Manifest and activity edits live there; if it's ever regenerated (`tauri android init` again), those edits are lost — hence committing it in A0.
 - **Emulator limits.** No real Drive/Autosync on the emulator; storage-permission flows differ subtly. A0–A3 are fine on the emulator; A4–A5 want the real phone.
 - **Keep the phone's font scale in mind.** Android's system font scaling multiplies rem-based sizes; test at 100% and 130%. The measure (~70ch) should shrink gracefully, never horizontally scroll.
@@ -110,7 +110,7 @@ Generate a personal keystore, wire signing into the Gradle config, `npm run taur
   in TS and #[cfg(target_os = "android")] in Rust. No Mobile* component forks.
 - Storage: All Files Access with real paths (PLAN-ANDROID.md §2). The Rust
   core is unchanged; folder picking uses the in-app browser, delete goes to
-  .folio-bin/ on Android. Never introduce SAF/content:// URIs into the core.
+  .mdreader-bin/ on Android. Never introduce SAF/content:// URIs into the core.
 - The 5 desktop Playwright scripts + mobiletest.mjs must all pass after every
   session. Desktop `npm run tauri dev` must keep working from this checkout.
 - src-tauri/gen/android is committed and hand-edited (manifest, activity).

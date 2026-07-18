@@ -1,11 +1,11 @@
 ---
 title: Torture test
-author: Folio
+author: Markdown Reader
 tags: [fixture, regression]
 status: permanent
 ---
 
-# The Folio torture test
+# The Markdown Reader torture test
 
 This document exercises every rendering feature in PLAN.md §4. It is the permanent regression fixture — if this page renders correctly and beautifully, the pipeline is healthy. Check it after **any** pipeline or CSS change.
 
@@ -73,7 +73,7 @@ export function stems(nodes: TreeNode[]): Map<string, string> {
 
 ```rust
 fn atomic_write(path: &Path, content: &str) -> std::io::Result<()> {
-    let tmp = path.with_extension("md.folio-tmp");
+    let tmp = path.with_extension("md.mdreader-tmp");
     std::fs::write(&tmp, content)?;
     std::fs::rename(&tmp, path) // rename is atomic on APFS
 }

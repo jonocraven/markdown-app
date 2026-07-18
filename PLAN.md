@@ -1,6 +1,6 @@
-# Folio — Implementation Plan
+# Markdown Reader — Implementation Plan
 
-*A beautiful, viewer-first markdown app for macOS (Android later). Working title "Folio" — rename at will.*
+*A beautiful, viewer-first markdown app for macOS (Android later). Working title "Folio", renamed to "Markdown Reader" post-v1 on real user feedback.*
 
 This document is written to be handed directly to Claude Code. It contains the product spec, the technical architecture, the design direction with exact tokens, a phased build plan with per-phase model assignments, and acceptance criteria. Work one phase per session where possible.
 
@@ -8,11 +8,13 @@ This document is written to be handed directly to Claude Code. It contains the p
 
 **Correction 2 (post-v1, on real user feedback):** the Monochrome palette in §6 originally called for a cream (`#FAFADF`) ground and zero colour anywhere outside the Shiki code exception. On-device testing found the cream too warm/dated and the file tree too plain, so: (a) `--paper`/`--paper-2`/`--paper-3` are now a crisp white/light-grey ground instead of cream, (b) a single restrained accent colour (`--accent`, a muted terracotta, `#B0451F`) is now used deliberately — links, the active tree/TOC/quick-switcher item, checked checkboxes, selection colour, and small decorative touches — while everything else stays monochrome, and (c) the file browser is a single-column drill-down with a clickable breadcrumb (one folder fills the sidebar's full width; clicking a folder drills in; the breadcrumb jumps back to any ancestor; opening a file from a link/search/quick-switcher reveals it by snapping the browser to that file's folder), not an indented expand/collapse tree. (An earlier revision tried Finder-style Miller columns, but a narrow sidebar can't show more than two columns without cutting deep paths off, so the single-column drill-down replaced it.) Treat §6 and the tree description in §4/§7 as superseded by this note wherever they conflict.
 
+**Correction 3 (post-v1, on real user feedback):** the working title "Folio" is renamed to **"Markdown Reader"** throughout — the macOS app name, window title, dock/About name, bundle identifier (`com.jonocraven.markdownreader`), Rust crate/binary, persisted settings filename, and every doc/comment. Treat every "Folio" mention below (including in this document) as "Markdown Reader". Two feature additions from the same round: a visible Back/Forward button pair (the ⌘[/⌘] history already described below was previously keyboard/menu-only), and a Favourites feature — pin files and folders from the tree's context menu, shown in a dedicated section above the file browser, persisted the same way as other UI state.
+
 ---
 
 ## 1. Product overview
 
-Folio is a local-first markdown viewer and light editor. The reading experience is the product: markdown files should render like a considered printed document, not a dev-tool preview. The reference quality bar is apps like MarkDrive (mark-drive.com) and Marked 2 — full GFM rendering, Mermaid diagrams, syntax-highlighted code, clean typography — but running natively on the Mac against a local folder.
+Markdown Reader is a local-first markdown viewer and light editor. The reading experience is the product: markdown files should render like a considered printed document, not a dev-tool preview. The reference quality bar is apps like MarkDrive (mark-drive.com) and Marked 2 — full GFM rendering, Mermaid diagrams, syntax-highlighted code, clean typography — but running natively on the Mac against a local folder.
 
 Core concepts:
 
@@ -86,7 +88,7 @@ Frontmatter: parse YAML frontmatter, hide it from the rendered body, and show it
 
 **Linking:** see §5.
 
-**Navigation:** file tree sidebar with remembered expansion state; TOC panel; ⌘K quick switcher; ⇧⌘F full-text search with grouped-by-file results and click-to-open-at-line; back/forward history; drag-a-file-onto-the-app and "Open With → Folio" from Finder both work (register the app as an editor for `.md` in `Info.plist` via Tauri config).
+**Navigation:** file tree sidebar with remembered expansion state; TOC panel; ⌘K quick switcher; ⇧⌘F full-text search with grouped-by-file results and click-to-open-at-line; back/forward history; drag-a-file-onto-the-app and "Open With → Markdown Reader" from Finder both work (register the app as an editor for `.md` in `Info.plist` via Tauri config).
 
 **Files:** create new file (⌘N, prompts for name + folder), rename, delete-to-trash from the tree's context menu. Nothing fancier.
 
@@ -184,7 +186,7 @@ App icon (design separately — a cream/ink monogram); native menu bar with all 
 ## 9. CLAUDE.md seed (drop into the repo root)
 
 ```markdown
-# Folio — markdown viewer/editor (Tauri 2 + React + TS)
+# Markdown Reader — markdown viewer/editor (Tauri 2 + React + TS)
 Read PLAN.md before any work. Current phase: <update me>.
 
 ## Rules

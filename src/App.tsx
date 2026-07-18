@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeft, PanelRight, FolderOpen, FilePlus } from "lucide-react";
+import { PanelLeft, PanelRight, FolderOpen, FilePlus, ArrowLeft, ArrowRight } from "lucide-react";
 import { Reader } from "./components/Reader";
 import { Editor } from "./components/Editor";
 import { ConflictBanner } from "./components/ConflictBanner";
 import { Toc } from "./components/Toc";
 import { Tree } from "./components/Tree";
+import { Favourites } from "./components/Favourites";
 import { LinkPopover } from "./components/LinkPopover";
 import { SearchPanel } from "./components/SearchPanel";
 import { QuickSwitcher } from "./components/QuickSwitcher";
@@ -37,7 +38,7 @@ interface ConflictState {
 }
 
 const CONFLICT_DIVIDER = (diskContent: string) =>
-  `\n\n<!-- ===== FOLIO CONFLICT: your version above — the version saved to disk is below. Merge by hand, then save. ===== -->\n\n${diskContent}\n<!-- ===== end of disk version ===== -->\n`;
+  `\n\n<!-- ===== MARKDOWN READER CONFLICT: your version above — the version saved to disk is below. Merge by hand, then save. ===== -->\n\n${diskContent}\n<!-- ===== end of disk version ===== -->\n`;
 
 function scrollToHeading(id: string) {
   const el = document.getElementById(id);
@@ -54,6 +55,8 @@ export default function App() {
     editing,
     showTree,
     showToc,
+    back,
+    forward,
     setRoot,
     setTree,
     navigate,
@@ -117,6 +120,16 @@ export default function App() {
   // against the previous document's (about-to-be-replaced) DOM.
   const pendingAnchorRef = useRef<string | null>(null);
 
+  // Set whenever currentPath actually changes to a different file — cleared
+  // once consumed. scrollHostRef is one persistent DOM node reused across
+  // every document (only its content swaps), so without this its scrollTop
+  // from the PREVIOUS file leaks into the next one, landing you "halfway
+  // down" a document you've never scrolled. Same-file re-renders (autosave,
+  // toggling the editor, an external-change reload) must NOT reset scroll —
+  // those already manage position themselves (restoreScrollFraction) or
+  // want to hold still — so this is only armed by an actual path change.
+  const pendingScrollResetRef = useRef(false);
+
   // Hydrate persisted UI state (pane visibility, tree expansion).
   useEffect(() => {
     useAppStore.getState().hydratePersistedState();
@@ -156,7 +169,7 @@ export default function App() {
     // Dynamic import to avoid issues in browser mode
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen<{ paths: string[] }>("open-file", (event) => {
-        console.log("[folio] open-file event:", event.payload.paths);
+        console.log("[markdown-reader] open-file event:", event.payload.paths);
       });
     });
   }, []);
@@ -192,7 +205,7 @@ export default function App() {
         if (isConflictError(err)) {
           setConflict({ path, pendingContent: content });
         } else {
-          console.error("[folio] save failed:", err);
+          console.error("[markdown-reader] save failed:", err);
         }
         if (isCurrent()) setSaveStatus("unsaved");
       } finally {
@@ -235,6 +248,7 @@ export default function App() {
       return;
     }
     let cancelled = false;
+    pendingScrollResetRef.current = true;
     vault.readFile(currentPath).then(({ content, mtimeMs: mtime }) => {
       if (cancelled) return;
       setSource(content);
@@ -254,17 +268,28 @@ export default function App() {
   }, [currentPath, cancelAutosave, performSave]);
 
   // Once the target document has rendered, consume any pending anchor from
-  // a cross-file link (e.g. `./specs/api.md#endpoints`) and scroll to it.
-  // Anchor scrolls never touch history — only navigate() does that.
+  // a cross-file link (e.g. `./specs/api.md#endpoints`) and scroll to it —
+  // otherwise, if this render is a real navigation to a different file
+  // (pendingScrollResetRef), start at the top rather than wherever the
+  // previous document left the shared scroll container. Anchor scrolls
+  // never touch history — only navigate() does that.
   useEffect(() => {
+    if (!doc) return;
     const id = pendingAnchorRef.current;
-    if (!doc || !id) return;
-    pendingAnchorRef.current = null;
-    requestAnimationFrame(() => scrollToHeading(id));
+    if (id) {
+      pendingAnchorRef.current = null;
+      pendingScrollResetRef.current = false;
+      requestAnimationFrame(() => scrollToHeading(id));
+    } else if (pendingScrollResetRef.current) {
+      pendingScrollResetRef.current = false;
+      requestAnimationFrame(() => {
+        if (scrollHostRef.current) scrollHostRef.current.scrollTop = 0;
+      });
+    }
   }, [doc]);
 
   // Live-reload on external changes (Drive sync, other editors, or the
-  // browser-mode __folioSimulateExternalEdit hook — vault.onExternalChange
+  // browser-mode __markdownReaderSimulateExternalEdit hook — vault.onExternalChange
   // unifies both). If the open file has unsaved edits, do NOT clobber the
   // buffer: skip the reload entirely and let the next save (autosave/⌘S)
   // naturally hit the mtime check and surface the conflict banner. If it's
@@ -349,7 +374,7 @@ export default function App() {
       try {
         await vault.renameFile(oldPath, newPath);
       } catch (err) {
-        console.error("[folio] rename failed:", err);
+        console.error("[markdown-reader] rename failed:", err);
         return;
       }
 
@@ -373,7 +398,7 @@ export default function App() {
       try {
         await vault.deleteFile(path);
       } catch (err) {
-        console.error("[folio] delete failed:", err);
+        console.error("[markdown-reader] delete failed:", err);
         return;
       }
       setTree(await vault.listTree());
@@ -709,6 +734,7 @@ export default function App() {
             >
               <FilePlus size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} /> New file
             </button>
+            <Favourites nodes={tree} currentPath={currentPath} onOpenFile={navigate} />
             <Tree
               nodes={tree}
               currentPath={currentPath}
@@ -756,7 +782,13 @@ export default function App() {
               )}
             </div>
             <footer className="footer-chrome">
-              <span>
+              <span className="footer-nav">
+                <button onClick={goBack} disabled={back.length === 0} aria-label="Back">
+                  <ArrowLeft size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
+                </button>
+                <button onClick={goForward} disabled={forward.length === 0} aria-label="Forward">
+                  <ArrowRight size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
+                </button>
                 <button onClick={() => togglePane("tree")} aria-label="Toggle file tree">
                   <PanelLeft size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
                 </button>

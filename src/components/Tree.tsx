@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, FileText, Folder } from "lucide-react";
 import type { TreeNode } from "../ipc";
 import { useAppStore } from "../stores/appStore";
-import { dirname } from "../pathUtils";
+import { dirname, stripMdExt } from "../pathUtils";
 import { LinkPopover } from "./LinkPopover";
 
 interface TreeProps {
@@ -13,26 +13,36 @@ interface TreeProps {
   onDeleteFile: (path: string) => void;
 }
 
-type ContextMenuState = { path: string; name: string; x: number; y: number; confirmDelete: boolean };
-
-const stripExt = (name: string) => name.replace(/\.(md|markdown)$/, "");
+type ContextMenuState = {
+  path: string;
+  name: string;
+  isDir: boolean;
+  x: number;
+  y: number;
+  confirmDelete: boolean;
+};
 
 /**
  * File browser as a single-column drill-down with a breadcrumb — Finder's
  * *column* view needs horizontal room a narrow sidebar doesn't have (deep
  * paths get cut off and you scroll the strip back and forth), so instead one
- * folder fills the full width at a time. `dir` is the folder currently shown
+ * folder fills the full width at a time. `browserDir` (lifted into
+ * appStore so Favourites.tsx can drive it too) is the folder currently shown
  * (root-relative, "" at the vault root). Clicking a folder drills in; the
  * breadcrumb jumps straight back to any ancestor in one click. Opening a file
  * from elsewhere (a link, search, the quick switcher) reveals it by snapping
- * `dir` to that file's own folder — the browser follows the open document.
+ * `browserDir` to that file's own folder — the browser follows the open
+ * document.
  */
 export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }: TreeProps) {
   const rootName = useAppStore((s) => s.rootName);
+  const dir = useAppStore((s) => s.browserDir);
+  const setDir = useAppStore((s) => s.setBrowserDir);
+  const favourites = useAppStore((s) => s.favourites);
+  const toggleFavourite = useAppStore((s) => s.toggleFavourite);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [dir, setDir] = useState("");
 
   const nodeByPath = useMemo(() => new Map(nodes.map((n) => [n.path, n])), [nodes]);
 
@@ -56,7 +66,7 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
   // so it isn't disturbed by this.
   useEffect(() => {
     if (currentPath) setDir(dirname(currentPath));
-  }, [currentPath]);
+  }, [currentPath, setDir]);
 
   // If the shown folder disappears (deleted/renamed elsewhere), climb to the
   // nearest surviving ancestor rather than showing an empty void.
@@ -64,7 +74,7 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
     let d = dir;
     while (d !== "" && !(nodeByPath.get(d)?.isDir)) d = dirname(d);
     if (d !== dir) setDir(d);
-  }, [nodeByPath, dir]);
+  }, [nodeByPath, dir, setDir]);
 
   const items = childrenOf.get(dir === "" ? null : dir) ?? [];
 
@@ -83,7 +93,8 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
     e.preventDefault();
     setMenu({
       path: node.path,
-      name: stripExt(node.name),
+      name: stripMdExt(node.name),
+      isDir: node.isDir,
       x: e.clientX,
       y: e.clientY,
       confirmDelete: false,
@@ -147,14 +158,14 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
                 className={`tree-item tree-col-item${node.path === currentPath ? " selected" : ""}`}
                 aria-current={node.path === currentPath}
                 onClick={() => (node.isDir ? setDir(node.path) : onOpen(node.path))}
-                onContextMenu={(e) => (node.isDir ? undefined : openMenu(e, node))}
+                onContextMenu={(e) => openMenu(e, node)}
               >
                 {node.isDir ? (
                   <Folder size={12} strokeWidth={1.5} />
                 ) : (
                   <FileText size={12} strokeWidth={1.5} />
                 )}
-                <span className="tree-col-item-label">{stripExt(node.name)}</span>
+                <span className="tree-col-item-label">{stripMdExt(node.name)}</span>
                 {node.isDir && <ChevronRight size={12} strokeWidth={1.5} className="chevron" />}
               </button>
             ),
@@ -165,15 +176,28 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
       {menu && !menu.confirmDelete && (
         <LinkPopover x={menu.x} y={menu.y} kind="tree-menu" onClose={() => setMenu(null)}>
           <p className="link-popover-label">{menu.name}</p>
-          <button className="link-popover-item" onClick={startRename}>
-            Rename
-          </button>
           <button
             className="link-popover-item"
-            onClick={() => setMenu((m) => (m ? { ...m, confirmDelete: true } : m))}
+            onClick={() => {
+              toggleFavourite(menu.path);
+              setMenu(null);
+            }}
           >
-            Move to Bin
+            {favourites.includes(menu.path) ? "Remove from Favourites" : "Add to Favourites"}
           </button>
+          {!menu.isDir && (
+            <>
+              <button className="link-popover-item" onClick={startRename}>
+                Rename
+              </button>
+              <button
+                className="link-popover-item"
+                onClick={() => setMenu((m) => (m ? { ...m, confirmDelete: true } : m))}
+              >
+                Move to Bin
+              </button>
+            </>
+          )}
         </LinkPopover>
       )}
 

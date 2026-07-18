@@ -31,7 +31,7 @@ async function getTauriAdapter(): Promise<PersistenceAdapter> {
 
   // Dynamically import only in Tauri context
   const { LazyStore } = await import("@tauri-apps/plugin-store");
-  const store = new LazyStore("folio-settings.json");
+  const store = new LazyStore("markdown-reader-settings.json");
 
   tauriAdapter = {
     get: async (key: string) => {

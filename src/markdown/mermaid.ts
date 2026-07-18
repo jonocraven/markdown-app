@@ -70,7 +70,7 @@ export async function renderMermaidBlocks(container: HTMLElement): Promise<void>
     pre.dataset.mermaidDone = "1";
     const source = code.textContent ?? "";
     try {
-      const { svg } = await mermaid.render(`folio-mermaid-${counter++}`, source);
+      const { svg } = await mermaid.render(`mdreader-mermaid-${counter++}`, source);
       const holder = document.createElement("div");
       holder.className = "mermaid-block";
       holder.innerHTML = svg;

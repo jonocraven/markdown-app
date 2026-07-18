@@ -12,7 +12,7 @@
 
 /* Entrance: one staggered fade-up per block, disabled under reduced motion
    (blanket rule in base.css). Delay is set inline per block by Reader. */
-@keyframes folio-fade-up {
+@keyframes mdreader-fade-up {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -24,7 +24,7 @@
 }
 
 .reader.animate > * {
-  animation: folio-fade-up var(--dur) var(--ease) both;
+  animation: mdreader-fade-up var(--dur) var(--ease) both;
 }
 
 /* ---- Document head ---- */

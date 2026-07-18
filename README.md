@@ -1,6 +1,6 @@
-# Folio
+# Markdown Reader
 
-Folio is a local-first markdown viewer and light editor for macOS. It renders markdown files with the careful typography and clean design of a printed document, giving reading primacy over editing. Files live in a folder you control — on your computer, in Google Drive, or elsewhere — with no database, no lock-in.
+Markdown Reader is a local-first markdown viewer and light editor for macOS. It renders markdown files with the careful typography and clean design of a printed document, giving reading primacy over editing. Files live in a folder you control — on your computer, in Google Drive, or elsewhere — with no database, no lock-in.
 
 ## Features
 
@@ -18,7 +18,7 @@ Folio is a local-first markdown viewer and light editor for macOS. It renders ma
 ### Development
 
 ```bash
-cd folio
+cd markdown-app
 
 # Frontend only (browser mode; serves sample vault from memory, no Tauri window)
 npm install
@@ -66,7 +66,7 @@ Release builds on Intel are slow (~10 minutes); prefer building on the M5 Air if
 Regression tests run against a live `vite preview` server using Playwright in Chromium. In the `scratchpad` directory (populated from a prior session):
 
 ```bash
-# In folio/ after building
+# In markdown-app/ after building
 npx vite build
 npx vite preview --port 4173 &
 
