@@ -178,3 +178,66 @@ button {
     transition: none !important;
   }
 }
+
+/* ---- Link popover: wikilink disambiguation, broken-wikilink create offer ---- */
+
+.link-popover {
+  position: fixed;
+  z-index: 50;
+  min-width: 220px;
+  max-width: 340px;
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--ink);
+  background: var(--paper-2);
+  border: var(--border-hairline);
+  border-radius: var(--radius);
+  padding: 10px;
+}
+
+.link-popover-label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 10.5px;
+  color: var(--graphite-light);
+  margin: 0 0 8px;
+}
+
+.link-popover-path {
+  margin: 0 0 10px;
+  color: var(--graphite);
+  word-break: break-all;
+}
+
+.link-popover-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 6px;
+  color: var(--graphite);
+  border-radius: var(--radius);
+  word-break: break-all;
+}
+
+.link-popover-item:hover {
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.link-popover-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.link-popover-button {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  border: var(--border-faint);
+  border-radius: var(--radius);
+  padding: 4px 12px;
+  color: var(--ink);
+}
+
+.link-popover-button:hover {
+  background: var(--paper-3);
+}

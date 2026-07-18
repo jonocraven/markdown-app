@@ -118,3 +118,7 @@ Regular weight, slight letter-spacing, no rules below h2.
 ## A long paragraph for line-length checking
 
 The reading column should hold at roughly seventy characters. Lora at sixteen pixels with a line-height around one-point-seven should feel like a well-set book page: comfortable, unhurried, with generous margins either side. If this paragraph feels cramped or the measure runs wide, the reading width token has regressed and must be fixed before anything else ships.
+
+## Links (Phase 3 vault)
+
+The rest of the sample vault (see [the vault index](./index.md)) exercises link routing and history beyond what this fixture alone covers: a cross-file anchor link to [the API spec's Endpoints section](./specs/api-spec.md#endpoints), a same-page anchor up to [the Mermaid diagram](#mermaid) (far enough up the page to prove the scroll actually moves), a wikilink to [[api spec]], and a deliberately ambiguous [[overview]] wikilink — `specs/overview.md` and `notes/overview.md` share that stem, so clicking it from here should offer a choice.

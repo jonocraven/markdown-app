@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { renderMarkdown, type RenderedDoc } from "../markdown/pipeline";
 import { renderMermaidBlocks } from "../markdown/mermaid";
+import { styleLinks } from "../markdown/linkStyling";
 
 interface ReaderProps {
   source: string;
   path: string;
-  /** Link clicks bubble here for routing (in-app / browser / create-file).
-   * Phase 3 wires the real router; until then clicks are logged. */
-  onLinkClick?: (href: string | null, wikilink: string | null) => void;
+  /** Link clicks bubble here for routing (in-app / browser / create-file);
+   * see src/linkRouter.ts. `anchorEl` is the clicked <a> itself, used to
+   * position disambiguation/create-file popovers near the click. */
+  onLinkClick?: (
+    href: string | null,
+    wikilink: string | null,
+    anchorEl: HTMLAnchorElement,
+  ) => void;
   onRendered?: (doc: RenderedDoc) => void;
 }
 
@@ -44,7 +50,8 @@ export function Reader({ source, path, onLinkClick, onRendered }: ReaderProps) {
       });
     }
     void renderMermaidBlocks(el);
-  }, [doc, animate]);
+    void styleLinks(el, path);
+  }, [doc, animate, path]);
 
   // Single delegated click handler: never let the webview navigate natively.
   const handleClick = (e: React.MouseEvent) => {
@@ -54,9 +61,9 @@ export function Reader({ source, path, onLinkClick, onRendered }: ReaderProps) {
     const wikilink = anchor.getAttribute("data-wikilink");
     const href = anchor.getAttribute("href");
     if (onLinkClick) {
-      onLinkClick(href, wikilink);
+      onLinkClick(href, wikilink, anchor as HTMLAnchorElement);
     } else {
-      console.log("[folio] link click (routing lands in Phase 3):", { href, wikilink });
+      console.log("[folio] link click (no router wired):", { href, wikilink });
     }
   };
 
