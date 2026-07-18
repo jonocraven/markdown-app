@@ -40,6 +40,6 @@
 
   /* Layout */
   --reading-width: 70ch;
-  --pane-tree-width: 320px;
+  --pane-tree-width: 256px;
   --pane-toc-width: 220px;
 }

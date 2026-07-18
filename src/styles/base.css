@@ -180,25 +180,63 @@ button {
   background: var(--paper-2);
 }
 
-/* ---- Column browser (Finder-style Miller columns) ---- */
+/* ---- File browser: breadcrumb + single-column drill-down ---- */
 
-.tree-columns {
+.tree-crumbs {
   display: flex;
-  height: 100%;
-  overflow-x: auto;
-  margin: 0 -14px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px 2px;
+  margin: 0 0 10px;
+  padding: 0 2px;
+  font-family: var(--font-mono);
 }
 
-.tree-column {
-  flex-shrink: 0;
-  width: 168px;
+.tree-crumb-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tree-crumb-sep {
+  color: var(--graphite-light);
+  font-size: var(--size-small);
+}
+
+.tree-crumb {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  color: var(--graphite);
+  padding: 1px 4px;
+  border-radius: var(--radius);
+  transition: color 0.12s var(--ease), background 0.12s var(--ease);
+}
+
+.tree-crumb:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--paper-2);
+}
+
+.tree-crumb.current {
+  color: var(--ink);
+  cursor: default;
+}
+
+.tree-list {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  border-right: var(--border-faint);
-  padding: 2px 0;
+  margin: 0 -6px;
 }
 
-.tree-column:first-child {
-  padding-left: 0;
+.tree-empty {
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--graphite-light);
+  padding: 8px 8px;
+  margin: 0;
 }
 
 .tree-col-item {

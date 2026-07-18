@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, FileText, Folder } from "lucide-react";
 import type { TreeNode } from "../ipc";
+import { useAppStore } from "../stores/appStore";
+import { dirname } from "../pathUtils";
 import { LinkPopover } from "./LinkPopover";
 
 interface TreeProps {
@@ -16,20 +18,21 @@ type ContextMenuState = { path: string; name: string; x: number; y: number; conf
 const stripExt = (name: string) => name.replace(/\.(md|markdown)$/, "");
 
 /**
- * File browser, styled after Finder's column view: each directory level gets
- * its own vertical list, laid out left-to-right, with the whole strip
- * scrolling horizontally as you drill deeper. `chain` holds the sequence of
- * directory paths drilled into beyond the root (so columns.length ===
- * chain.length + 1). It resyncs from `currentPath`'s own ancestry whenever a
- * file is opened from elsewhere (a wikilink, the quick switcher, search) —
- * exactly like Finder snapping its columns to a file revealed by Spotlight —
- * and otherwise just grows/shrinks as the user clicks folders in a column.
+ * File browser as a single-column drill-down with a breadcrumb — Finder's
+ * *column* view needs horizontal room a narrow sidebar doesn't have (deep
+ * paths get cut off and you scroll the strip back and forth), so instead one
+ * folder fills the full width at a time. `dir` is the folder currently shown
+ * (root-relative, "" at the vault root). Clicking a folder drills in; the
+ * breadcrumb jumps straight back to any ancestor in one click. Opening a file
+ * from elsewhere (a link, search, the quick switcher) reveals it by snapping
+ * `dir` to that file's own folder — the browser follows the open document.
  */
 export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }: TreeProps) {
+  const rootName = useAppStore((s) => s.rootName);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [chain, setChain] = useState<string[]>([]);
+  const [dir, setDir] = useState("");
 
   const nodeByPath = useMemo(() => new Map(nodes.map((n) => [n.path, n])), [nodes]);
 
@@ -48,34 +51,33 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
     return map;
   }, [nodes]);
 
-  const ancestorsOf = (path: string | null): string[] => {
-    const result: string[] = [];
-    let cur = path ? (nodeByPath.get(path)?.parent ?? null) : null;
-    while (cur) {
-      result.unshift(cur);
-      cur = nodeByPath.get(cur)?.parent ?? null;
-    }
-    return result;
-  };
-
-  // A file opened from outside the tree (link click, quick switcher, search)
-  // should reveal itself in the columns, just like Finder does.
+  // Reveal the open document: when a file is opened from anywhere, show the
+  // folder that holds it. Manual folder browsing never changes currentPath,
+  // so it isn't disturbed by this.
   useEffect(() => {
-    setChain(ancestorsOf(currentPath));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPath, nodes]);
+    if (currentPath) setDir(dirname(currentPath));
+  }, [currentPath]);
 
-  const fileParent = currentPath ? (nodeByPath.get(currentPath)?.parent ?? null) : null;
-  const columnParents: (string | null)[] = [null, ...chain];
+  // If the shown folder disappears (deleted/renamed elsewhere), climb to the
+  // nearest surviving ancestor rather than showing an empty void.
+  useEffect(() => {
+    let d = dir;
+    while (d !== "" && !(nodeByPath.get(d)?.isDir)) d = dirname(d);
+    if (d !== dir) setDir(d);
+  }, [nodeByPath, dir]);
 
-  const openFolder = (columnIndex: number, path: string) => {
-    setChain((prev) => [...prev.slice(0, columnIndex), path]);
-  };
+  const items = childrenOf.get(dir === "" ? null : dir) ?? [];
 
-  const openFile = (columnIndex: number, path: string) => {
-    setChain((prev) => prev.slice(0, columnIndex));
-    onOpen(path);
-  };
+  const crumbs = useMemo(() => {
+    const segments = dir ? dir.split("/") : [];
+    const trail: { label: string; path: string }[] = [{ label: rootName ?? "Files", path: "" }];
+    let acc = "";
+    for (const seg of segments) {
+      acc = acc ? `${acc}/${seg}` : seg;
+      trail.push({ label: seg, path: acc });
+    }
+    return trail;
+  }, [dir, rootName]);
 
   const openMenu = (e: React.MouseEvent, node: TreeNode) => {
     e.preventDefault();
@@ -103,53 +105,61 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
 
   return (
     <nav className="chrome" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <p className="chrome-label">Files</p>
-      <div className="tree-columns" style={{ flex: 1, minHeight: 0 }}>
-        {columnParents.map((parent, columnIndex) => {
-          const items = childrenOf.get(parent) ?? [];
-          if (items.length === 0) return null;
-          const selectedPath = columnParents[columnIndex + 1] ??
-            (parent === fileParent ? currentPath : null);
-
+      <div className="tree-crumbs">
+        {crumbs.map((crumb, i) => {
+          const isLast = i === crumbs.length - 1;
           return (
-            <div className="tree-column" key={parent ?? "__root"}>
-              {items.map((node) =>
-                renamingPath === node.path ? (
-                  <input
-                    key={node.path}
-                    autoFocus
-                    className="tree-rename-input"
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") confirmRename(node.path);
-                      else if (e.key === "Escape") setRenamingPath(null);
-                    }}
-                    onBlur={() => setRenamingPath(null)}
-                  />
-                ) : (
-                  <button
-                    key={node.path}
-                    className={`tree-item tree-col-item${node.path === selectedPath ? " selected" : ""}`}
-                    aria-current={node.path === selectedPath}
-                    onClick={() =>
-                      node.isDir ? openFolder(columnIndex, node.path) : openFile(columnIndex, node.path)
-                    }
-                    onContextMenu={(e) => (node.isDir ? undefined : openMenu(e, node))}
-                  >
-                    {node.isDir ? (
-                      <Folder size={12} strokeWidth={1.5} />
-                    ) : (
-                      <FileText size={12} strokeWidth={1.5} />
-                    )}
-                    <span className="tree-col-item-label">{stripExt(node.name)}</span>
-                    {node.isDir && <ChevronRight size={12} strokeWidth={1.5} className="chevron" />}
-                  </button>
-                ),
-              )}
-            </div>
+            <span key={crumb.path} className="tree-crumb-group">
+              {i > 0 && <span className="tree-crumb-sep">›</span>}
+              <button
+                className={`tree-crumb${isLast ? " current" : ""}`}
+                onClick={() => setDir(crumb.path)}
+                disabled={isLast}
+              >
+                {crumb.label}
+              </button>
+            </span>
           );
         })}
+      </div>
+
+      <div className="tree-list">
+        {items.length === 0 ? (
+          <p className="tree-empty">Empty folder</p>
+        ) : (
+          items.map((node) =>
+            renamingPath === node.path ? (
+              <input
+                key={node.path}
+                autoFocus
+                className="tree-rename-input"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmRename(node.path);
+                  else if (e.key === "Escape") setRenamingPath(null);
+                }}
+                onBlur={() => setRenamingPath(null)}
+              />
+            ) : (
+              <button
+                key={node.path}
+                className={`tree-item tree-col-item${node.path === currentPath ? " selected" : ""}`}
+                aria-current={node.path === currentPath}
+                onClick={() => (node.isDir ? setDir(node.path) : onOpen(node.path))}
+                onContextMenu={(e) => (node.isDir ? undefined : openMenu(e, node))}
+              >
+                {node.isDir ? (
+                  <Folder size={12} strokeWidth={1.5} />
+                ) : (
+                  <FileText size={12} strokeWidth={1.5} />
+                )}
+                <span className="tree-col-item-label">{stripExt(node.name)}</span>
+                {node.isDir && <ChevronRight size={12} strokeWidth={1.5} className="chevron" />}
+              </button>
+            ),
+          )
+        )}
       </div>
 
       {menu && !menu.confirmDelete && (

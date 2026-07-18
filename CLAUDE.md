@@ -12,7 +12,8 @@ real filesystem) before `tauri build`.
 - Design system: mostly Monochrome, crisp white/grey ground (PLAN.md §6,
   superseded by "Correction 2"). One restrained terracotta accent
   (`--accent`) plus the muted code-highlighting exception — no other colour.
-  File browser is a Finder-style column view, not an expand/collapse tree.
+  File browser is a single-column drill-down with a breadcrumb (see PLAN.md
+  "Correction 2"), not an expand/collapse tree or Miller columns.
   No Tailwind, no shadcn, no emoji-as-UI.
 - All disk writes go through write_file (atomic + mtime conflict check). Never
   add a second write path.
