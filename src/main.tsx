@@ -17,6 +17,7 @@ import "katex/dist/katex.min.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/reader.css";
+import "./styles/editor.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

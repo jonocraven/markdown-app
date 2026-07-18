@@ -1,9 +1,11 @@
 # Folio — markdown viewer/editor (Tauri 2 + React + TS)
-Read PLAN.md before any work. Current phase: Phase 3 (links + history)
-complete — relative/wikilink/anchor routing, broken-link + external-link
-styling, disambiguation and create-file popovers, browser-mode virtual vault
-for testing without Tauri — see NEXT_STEPS.md for the handoff state and
-per-phase model assignments. Next: Phase 4 (editor + safe writes).
+Read PLAN.md before any work. Current phase: Phase 4 (editor + safe writes)
+complete — CodeMirror 6 editor themed to the reader, ⌘E toggle with
+proportional scroll mapping, ⌘S + 2s idle autosave through the vault's
+conflict-checked write path, non-modal conflict banner (keep mine / take
+theirs / show both), real checkbox write-back — see NEXT_STEPS.md for the
+handoff state and per-phase model assignments. Next: Phase 5 (search +
+quick switcher).
 
 ## Rules
 - Viewer-first. The Reader's typography is the product; never regress it.
@@ -29,12 +31,31 @@ cargo fmt/clippy in src-tauri
   callouts, Shiki step, Mermaid lazy-loader, post-mount broken/external link
   styling). This is the product core.
 - src/vault.ts — storage facade. Tauri mode delegates to ipc; browser mode
-  serves samples/**/*.md from an in-memory map (import.meta.glob). App.tsx
-  and src/linkRouter.ts call this, not ipc/isTauri(), directly.
+  serves samples/**/*.md from an in-memory map (import.meta.glob), with
+  simulated mtimes and the SAME conflict semantics as write_file (rejects
+  with `{ kind: "conflict", currentMtimeMs }` — see `isConflictError`), so
+  the conflict banner is exercisable in Chromium. `vault.writeFile` is the
+  only write path both modes ever use; `vault.onExternalChange` unifies
+  Tauri's fs-changed events and the browser-only
+  `window.__folioSimulateExternalEdit(path, content)` Playwright hook.
+  App.tsx and src/linkRouter.ts call this, not ipc/isTauri(), directly.
 - src/linkRouter.ts — resolves a link click (relative/wikilink/anchor/
   external) into an action for App.tsx to perform; never touches history
   or the DOM itself (except opening external links).
 - src/ipc.ts — the only place the frontend talks to Rust. Types here mirror
   the Serialize structs in src-tauri/src/commands.rs; keep both in sync.
+- src/components/Editor.tsx — CodeMirror 6, mounted by App.tsx in place of
+  Reader when `editing` is true. Uncontrolled past creation; App.tsx forces
+  a remount (via `key`) to replace the buffer programmatically (new file,
+  "take theirs", "show both").
+- src/components/ConflictBanner.tsx — non-modal "file changed on disk"
+  banner (keep mine / take theirs / show both), rendered by App.tsx above
+  whichever of Reader/Editor is showing.
+- src/taskMarkers.ts — `setTaskMarker(source, index, checked)`, the regex
+  rewrite behind the task-checkbox write-back contract below.
 - Task-checkbox write-back contract: the nth rendered checkbox
-  (data-task-index) corresponds to the nth `[ ]`/`[x]` marker in the source.
+  (data-task-index) corresponds to the nth `[ ]`/`[x]`/`[X]` marker in the
+  source, in document order. TaskCheckbox (src/components/ReaderBlocks.tsx)
+  delegates the actual write to App.tsx via TaskToggleContext — it applies
+  the change optimistically to `source` then writes through vault.writeFile
+  with the tracked mtime, surfacing the same conflict banner on failure.

@@ -32,6 +32,7 @@ interface AppState {
   goBack: () => void;
   goForward: () => void;
   toggleEditing: () => void;
+  setEditing: (editing: boolean) => void;
   togglePane: (pane: "tree" | "toc") => void;
   setCollapsedNodes: (nodes: Set<string>) => void;
   hydratePersistedState: () => Promise<void>;
@@ -90,6 +91,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   toggleEditing: () => set((s) => ({ editing: !s.editing })),
+  setEditing: (editing) => set({ editing }),
 
   togglePane: (pane) =>
     set((s) => {

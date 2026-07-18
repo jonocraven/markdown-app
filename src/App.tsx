@@ -1,20 +1,39 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PanelLeft, PanelRight, FolderOpen } from "lucide-react";
 import { Reader } from "./components/Reader";
+import { Editor } from "./components/Editor";
+import { ConflictBanner } from "./components/ConflictBanner";
 import { Toc } from "./components/Toc";
 import { Tree } from "./components/Tree";
 import { LinkPopover } from "./components/LinkPopover";
 import { useAppStore } from "./stores/appStore";
 import { ipc, isTauri } from "./ipc";
-import { vault } from "./vault";
+import { vault, isConflictError } from "./vault";
+import { setTaskMarker } from "./taskMarkers";
 import { resolveLinkClick } from "./linkRouter";
 import type { RenderedDoc } from "./markdown/pipeline";
 
 const ZOOM_STEPS = [0.85, 1, 1.15, 1.3, 1.5];
+const AUTOSAVE_IDLE_MS = 2000;
 
 type PopoverState =
   | { kind: "disambiguate"; candidates: string[]; x: number; y: number }
   | { kind: "create"; path: string; title: string; x: number; y: number };
+
+type SaveStatus = "idle" | "saving" | "saved" | "unsaved";
+
+/** A save that lost a race against a change on disk. Kept keyed by the path
+ * it applies to, so the banner only shows while that same file is open —
+ * see the render condition below — but the state itself isn't lost if the
+ * user has since navigated away (PLAN.md §4/§8: never silently clobber). */
+interface ConflictState {
+  path: string;
+  /** The content we tried (and failed) to save — "mine". */
+  pendingContent: string;
+}
+
+const CONFLICT_DIVIDER = (diskContent: string) =>
+  `\n\n<!-- ===== FOLIO CONFLICT: your version above — the version saved to disk is below. Merge by hand, then save. ===== -->\n\n${diskContent}\n<!-- ===== end of disk version ===== -->\n`;
 
 function scrollToHeading(id: string) {
   const el = document.getElementById(id);
@@ -28,6 +47,7 @@ export default function App() {
     rootName,
     tree,
     currentPath,
+    editing,
     showTree,
     showToc,
     setRoot,
@@ -36,12 +56,51 @@ export default function App() {
     goBack,
     goForward,
     togglePane,
+    toggleEditing,
+    setEditing,
   } = useAppStore();
 
   const [source, setSource] = useState<string | null>(null);
   const [doc, setDoc] = useState<RenderedDoc | null>(null);
   const [zoom, setZoom] = useState(1);
   const [popover, setPopover] = useState<PopoverState | null>(null);
+
+  // ---- Phase 4: editing / saving / conflict state ----
+  // mtimeMs and dirty are plain refs — nothing renders their raw value
+  // directly (the footer shows saveStatus, not dirty), but listeners and
+  // effect cleanups that must not re-subscribe on every keystroke (the
+  // external-change subscription, the flush-on-navigate effect) need to
+  // read the latest value instead of a stale closure, which a ref gives for
+  // free. `draft` DOES need to be real state — it's what the Editor mounts
+  // with — so it's mirrored into a ref for the same reason.
+  const mtimeRef = useRef<number | null>(null);
+  const setMtimeMs = (v: number | null) => {
+    mtimeRef.current = v;
+  };
+
+  const [draft, setDraftState] = useState<string | null>(null);
+  const draftRef = useRef<string | null>(null);
+  const setDraft = (v: string | null) => {
+    draftRef.current = v;
+    setDraftState(v);
+  };
+
+  const dirtyRef = useRef(false);
+  const setDirty = (v: boolean) => {
+    dirtyRef.current = v;
+  };
+
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [conflict, setConflict] = useState<ConflictState | null>(null);
+  // Bumped whenever the buffer must be replaced programmatically (take
+  // theirs / show both) — folded into the Editor's `key` so it remounts
+  // with fresh initial content instead of silently ignoring the change
+  // (CodeMirror is uncontrolled past creation, see Editor.tsx).
+  const [resetSeq, setResetSeq] = useState(0);
+
+  const saveTimerRef = useRef<number | null>(null);
+  const writeInFlightRef = useRef(false);
+  const scrollHostRef = useRef<HTMLDivElement>(null);
 
   // Set after a navigate() triggered by a link with a `#anchor`; consumed
   // once the newly-loaded document has rendered, so the scroll never fires
@@ -92,18 +151,90 @@ export default function App() {
     });
   }, []);
 
+  /**
+   * Conflict-safe write. Guarded against overlapping writes (checkbox
+   * clicks, autosave and ⌘S all funnel through here) with a single shared
+   * in-flight flag — there is only ever one write path (vault.writeFile ->
+   * write_file), so it makes sense to serialise it. `isCurrent()` re-checks
+   * the store at completion time so a save flushed for a file the user has
+   * since navigated away from doesn't clobber whatever they're looking at
+   * now — but a conflict is still recorded (and will surface the banner if
+   * they come back to that file), never silently dropped.
+   */
+  const performSave = useCallback(
+    async (path: string, content: string, expectedMtimeMs: number) => {
+      if (writeInFlightRef.current) return;
+      writeInFlightRef.current = true;
+      const isCurrent = () => useAppStore.getState().currentPath === path;
+      if (isCurrent()) setSaveStatus("saving");
+      try {
+        const result = await vault.writeFile(path, content, expectedMtimeMs);
+        if (isCurrent()) {
+          setMtimeMs(result.mtimeMs);
+          setSource(result.content);
+          setDirty(false);
+          setSaveStatus("saved");
+          window.setTimeout(() => {
+            setSaveStatus((s) => (s === "saved" ? "idle" : s));
+          }, 2000);
+        }
+      } catch (err) {
+        if (isConflictError(err)) {
+          setConflict({ path, pendingContent: content });
+        } else {
+          console.error("[folio] save failed:", err);
+        }
+        if (isCurrent()) setSaveStatus("unsaved");
+      } finally {
+        writeInFlightRef.current = false;
+      }
+    },
+    [],
+  );
+
+  const cancelAutosave = useCallback(() => {
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleAutosave = useCallback(
+    (path: string, content: string, expectedMtimeMs: number) => {
+      cancelAutosave();
+      saveTimerRef.current = window.setTimeout(() => {
+        saveTimerRef.current = null;
+        performSave(path, content, expectedMtimeMs);
+      }, AUTOSAVE_IDLE_MS);
+    },
+    [cancelAutosave, performSave],
+  );
+
   // Load the current file whenever navigation changes it (both modes go
-  // through the vault facade — see src/vault.ts).
+  // through the vault facade — see src/vault.ts). The cleanup flushes any
+  // unsaved edit on the file we're leaving BEFORE this same effect's next
+  // run resets draft/mtime for the new one, so a pending autosave is never
+  // silently lost on navigation (PLAN.md §4).
   useEffect(() => {
     if (!currentPath) return;
     let cancelled = false;
-    vault.readFile(currentPath).then(({ content }) => {
-      if (!cancelled) setSource(content);
+    vault.readFile(currentPath).then(({ content, mtimeMs: mtime }) => {
+      if (cancelled) return;
+      setSource(content);
+      setMtimeMs(mtime);
+      setDraft(null);
+      setDirty(false);
+      setSaveStatus("idle");
+      setConflict(null);
     });
     return () => {
       cancelled = true;
+      cancelAutosave();
+      if (dirtyRef.current && draftRef.current !== null && mtimeRef.current !== null) {
+        performSave(currentPath, draftRef.current, mtimeRef.current);
+      }
     };
-  }, [currentPath]);
+  }, [currentPath, cancelAutosave, performSave]);
 
   // Once the target document has rendered, consume any pending anchor from
   // a cross-file link (e.g. `./specs/api.md#endpoints`) and scroll to it.
@@ -115,19 +246,29 @@ export default function App() {
     requestAnimationFrame(() => scrollToHeading(id));
   }, [doc]);
 
-  // Live-reload on external changes (Drive sync, other editors).
+  // Live-reload on external changes (Drive sync, other editors, or the
+  // browser-mode __folioSimulateExternalEdit hook — vault.onExternalChange
+  // unifies both). If the open file has unsaved edits, do NOT clobber the
+  // buffer: skip the reload entirely and let the next save (autosave/⌘S)
+  // naturally hit the mtime check and surface the conflict banner. If it's
+  // clean, reload silently (and resync the editor buffer too, if open).
   useEffect(() => {
-    if (!isTauri()) return;
-    const un = ipc.onFsChanged((change) => {
-      const { currentPath: open } = useAppStore.getState();
-      if (open && change.paths.includes(open) && change.kind !== "deleted") {
-        ipc.readFile(open).then(({ content }) => setSource(content));
-      }
+    const unsubscribe = vault.onExternalChange((change) => {
       vault.listTree().then(setTree);
+      const open = useAppStore.getState().currentPath;
+      if (!open || !change.paths.includes(open) || change.kind === "deleted") return;
+      if (dirtyRef.current) return; // keep the user's buffer; next save surfaces the conflict
+
+      vault.readFile(open).then(({ content, mtimeMs: mtime }) => {
+        setSource(content);
+        setMtimeMs(mtime);
+        if (useAppStore.getState().editing) {
+          setDraft(content);
+          setResetSeq((n) => n + 1);
+        }
+      });
     });
-    return () => {
-      un.then((f) => f());
-    };
+    return unsubscribe;
   }, [setTree]);
 
   const pickRoot = useCallback(async () => {
@@ -169,7 +310,126 @@ export default function App() {
     [currentPath, navigate],
   );
 
-  // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle (Phase 4).
+  /** Real checkbox write-back (Phase 4): rewrite the nth task marker in the
+   * source, then write through the vault with the tracked mtime. Applied
+   * optimistically to `source` first so the checkbox never snaps back while
+   * the write is in flight; if it conflicts, the change is preserved
+   * locally (no data loss) and the same banner used by the editor offers
+   * keep-mine/take-theirs/show-both. Reader is unmounted while editing, so
+   * this can never race the editor's own save path for the same file. */
+  const onTaskToggle = useCallback(
+    (index: number, checked: boolean) => {
+      if (!currentPath || source === null || mtimeRef.current === null) return;
+      if (writeInFlightRef.current) return; // guard double-fires while a write is in flight
+      const newSource = setTaskMarker(source, index, checked);
+      if (newSource === null) return;
+      setSource(newSource);
+      performSave(currentPath, newSource, mtimeRef.current);
+    },
+    [currentPath, source, performSave],
+  );
+
+  const captureScrollFraction = useCallback((): number => {
+    const el = scrollHostRef.current;
+    if (!el) return 0;
+    const max = el.scrollHeight - el.clientHeight;
+    return max > 0 ? el.scrollTop / max : 0;
+  }, []);
+
+  const restoreScrollFraction = useCallback((frac: number) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = scrollHostRef.current;
+        if (!el) return;
+        const max = el.scrollHeight - el.clientHeight;
+        el.scrollTop = frac * max;
+      });
+    });
+  }, []);
+
+  const handleDraftChange = useCallback(
+    (value: string) => {
+      setDraft(value);
+      setDirty(true);
+      setSaveStatus("unsaved");
+      if (currentPath && mtimeRef.current !== null) {
+        scheduleAutosave(currentPath, value, mtimeRef.current);
+      }
+    },
+    [currentPath, scheduleAutosave],
+  );
+
+  const flushIfDirtyAndLeaveEditor = useCallback(() => {
+    cancelAutosave();
+    if (dirtyRef.current && draftRef.current !== null && currentPath && mtimeRef.current !== null) {
+      performSave(currentPath, draftRef.current, mtimeRef.current);
+    }
+  }, [cancelAutosave, currentPath, performSave]);
+
+  const handleToggleEditing = useCallback(() => {
+    if (!currentPath) return;
+    if (editing) {
+      flushIfDirtyAndLeaveEditor();
+    } else {
+      setDraft(source);
+      setDirty(false);
+      setSaveStatus("idle");
+    }
+    const frac = captureScrollFraction();
+    toggleEditing();
+    restoreScrollFraction(frac);
+  }, [currentPath, editing, source, flushIfDirtyAndLeaveEditor, toggleEditing, captureScrollFraction, restoreScrollFraction]);
+
+  const handleSaveNow = useCallback(() => {
+    if (!editing || !currentPath || !dirtyRef.current || draftRef.current === null) return;
+    if (mtimeRef.current === null) return;
+    cancelAutosave();
+    performSave(currentPath, draftRef.current, mtimeRef.current);
+  }, [editing, currentPath, cancelAutosave, performSave]);
+
+  // ---- Conflict banner actions ----
+
+  const resolveKeepMine = useCallback(async () => {
+    if (!conflict) return;
+    const { path, pendingContent } = conflict;
+    setConflict(null);
+    const disk = await vault.readFile(path);
+    await performSave(path, pendingContent, disk.mtimeMs);
+  }, [conflict, performSave]);
+
+  const resolveTakeTheirs = useCallback(async () => {
+    if (!conflict) return;
+    const { path } = conflict;
+    setConflict(null);
+    cancelAutosave();
+    const disk = await vault.readFile(path);
+    setSource(disk.content);
+    setMtimeMs(disk.mtimeMs);
+    setDirty(false);
+    setSaveStatus("idle");
+    if (useAppStore.getState().editing) {
+      setDraft(disk.content);
+      setResetSeq((n) => n + 1);
+    }
+  }, [conflict, cancelAutosave]);
+
+  const resolveShowBoth = useCallback(async () => {
+    if (!conflict) return;
+    const { path, pendingContent } = conflict;
+    setConflict(null);
+    cancelAutosave();
+    const disk = await vault.readFile(path);
+    const merged = pendingContent.replace(/\n+$/, "") + CONFLICT_DIVIDER(disk.content);
+    setSource(merged);
+    setMtimeMs(disk.mtimeMs);
+    setDraft(merged);
+    setDirty(true);
+    setSaveStatus("unsaved");
+    setResetSeq((n) => n + 1);
+    if (!useAppStore.getState().editing) setEditing(true);
+  }, [conflict, cancelAutosave, setEditing]);
+
+  // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save (Phase 4).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -187,12 +447,15 @@ export default function App() {
         setZoom((z) => ZOOM_STEPS[Math.max(ZOOM_STEPS.indexOf(z) - 1, 0)]);
       } else if (e.key.toLowerCase() === "e") {
         e.preventDefault();
-        console.log("[folio] edit toggle lands in Phase 4");
+        handleToggleEditing();
+      } else if (e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        handleSaveNow();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goBack, goForward]);
+  }, [goBack, goForward, handleToggleEditing, handleSaveNow]);
 
   // Show zoom level briefly when it changes
   const [showZoomBriefly, setShowZoomBriefly] = useState(false);
@@ -207,6 +470,17 @@ export default function App() {
       ? "1 word"
       : `${doc.wordCount.toLocaleString("en-GB")} words`
     : "";
+
+  const saveStatusText =
+    saveStatus === "saving"
+      ? "Saving…"
+      : saveStatus === "saved"
+        ? "Saved"
+        : saveStatus === "unsaved"
+          ? "Unsaved changes"
+          : "";
+
+  const showConflictBanner = conflict !== null && conflict.path === currentPath;
 
   return (
     <div className="shell">
@@ -225,14 +499,35 @@ export default function App() {
       <main className="pane-doc">
         {currentPath ? (
           <>
-            <div style={{ flex: 1, overflowY: "auto", fontSize: `${zoom}em` }}>
-              {source !== null && (
-                <Reader
-                  source={source}
-                  path={currentPath}
-                  onLinkClick={onLinkClick}
-                  onRendered={setDoc}
+            <div
+              ref={scrollHostRef}
+              style={{ flex: 1, overflowY: "auto", fontSize: `${zoom}em` }}
+            >
+              {showConflictBanner && (
+                <ConflictBanner
+                  onKeepMine={resolveKeepMine}
+                  onTakeTheirs={resolveTakeTheirs}
+                  onShowBoth={resolveShowBoth}
                 />
+              )}
+              {editing ? (
+                <div className="editor-shell">
+                  <Editor
+                    key={`${currentPath}:${resetSeq}`}
+                    initialValue={draft ?? source ?? ""}
+                    onChange={handleDraftChange}
+                  />
+                </div>
+              ) : (
+                source !== null && (
+                  <Reader
+                    source={source}
+                    path={currentPath}
+                    onLinkClick={onLinkClick}
+                    onRendered={setDoc}
+                    onTaskToggle={onTaskToggle}
+                  />
+                )
               )}
             </div>
             <footer className="footer-chrome">
@@ -242,11 +537,11 @@ export default function App() {
                 </button>
               </span>
               <span>
-                {showZoomBriefly && zoom !== 1 ? (
-                  <span style={{ fontSize: "11px", opacity: 0.6 }}>{Math.round(zoom * 100)}%</span>
-                ) : (
-                  wordCountText
-                )}
+                {showZoomBriefly && zoom !== 1
+                  ? `${Math.round(zoom * 100)}%`
+                  : editing
+                    ? saveStatusText
+                    : wordCountText}
               </span>
               <span>
                 <button onClick={() => togglePane("toc")} aria-label="Toggle contents">

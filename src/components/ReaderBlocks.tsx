@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentPropsWithoutRef } from "react";
+import { createContext, useContext, useRef, useState, type ComponentPropsWithoutRef } from "react";
 
 /** Fenced code with a hover copy button. Mermaid fences pass through
  * untouched — the post-mount Mermaid renderer replaces them. */
@@ -24,13 +24,27 @@ export function CodeBlock(props: ComponentPropsWithoutRef<"pre">) {
 }
 
 /**
- * Interactive task checkbox. Phase 1 stub: logs the intended change.
- * Phase 4 replaces the log with a conflict-safe write mapping
- * data-task-index to the nth task marker in the source file.
+ * Real write-back handler for task checkboxes, provided by Reader (which
+ * gets it from App.tsx — that's where the current file's path, source and
+ * tracked mtime live). This indirection exists because TaskCheckbox is
+ * registered once with rehype-react and rendered deep inside the hast→react
+ * tree, with no direct prop route back to App; a context is the cleanest
+ * way to bubble the (index, checked) pair up without threading props
+ * through the whole markdown pipeline.
+ */
+export const TaskToggleContext = createContext<((index: number, checked: boolean) => void) | null>(
+  null,
+);
+
+/**
+ * Interactive task checkbox. Delegates entirely to TaskToggleContext — the
+ * conflict-safe write (regex rewrite of the nth `[ ]`/`[x]` marker, then
+ * vault.writeFile with the tracked mtime) lives in App.tsx, not here.
  */
 export function TaskCheckbox(props: ComponentPropsWithoutRef<"input">) {
   const { disabled: _disabled, ...rest } = props;
   const index = Number(rest["data-task-index" as keyof typeof rest] ?? -1);
+  const onToggle = useContext(TaskToggleContext);
 
   if (rest.type !== "checkbox") return <input {...props} />;
 
@@ -39,9 +53,7 @@ export function TaskCheckbox(props: ComponentPropsWithoutRef<"input">) {
       {...rest}
       disabled={false}
       onChange={(e) => {
-        console.log(
-          `[folio] task ${index} → ${e.target.checked ? "[x]" : "[ ]"} (write-back lands in Phase 4)`,
-        );
+        onToggle?.(index, e.target.checked);
       }}
     />
   );
