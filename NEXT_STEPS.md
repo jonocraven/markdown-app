@@ -9,6 +9,100 @@ stylesheet. What's left is entirely Mac-side verification (WKWebView, a real
 window, a real filesystem, a real build) — the single checklist below is that
 verification pass, written to run once on the Mac before shipping.*
 
+## Android (Phase 7 — PLAN-ANDROID.md): container work done, Mac work remaining
+
+*Added July 2026 (Session G, this Linux container). Everything below the
+checklist was implemented and verified here; the checklist itself needs the
+Mac with the Android phone (or an emulator) attached. Read PLAN-ANDROID.md
+first — §6's acceptance criteria are the definition of done.*
+
+**Done in this container (all committed, all six regression scripts green):**
+
+- **Regression suite committed** — the five desktop Playwright scripts were
+  rebuilt (they'd only ever lived in a session scratchpad) and now live in
+  `tests/` with `npm run test:all`; a sixth, `mobiletest.mjs` (Pixel
+  viewport + touch + `?platform=android`, 20 checks), joined them in A2/A3.
+- **A1 storage code** — `list_dirs`/`set_root` commands; `#[cfg(target_os =
+  "android")]` delete-to-`.mdreader-bin/` (`trash` is now a desktop-only
+  dependency; `cargo check`/`clippy` clean for `aarch64-linux-android`);
+  the in-app FolderBrowser (house style, first-run All-Files-Access
+  explainer, opener-plugin settings deep-link); resume-refresh on
+  `visibilitychange` that never clobbers a dirty editor buffer.
+- **A2 responsive shell** — below 768px (or Android): app bar, tree drawer
+  over a scrim, TOC bottom sheet, full-screen search/quick-switcher
+  takeovers; the hardware-back contract via `src/historyBridge.ts`
+  (pushState per navigation/overlay, popstate closes-overlay-else-goBack,
+  drift-guarded). Desktop three-pane shell is pixel-unchanged.
+- **A3 touch + editor** — long-press (500ms) opens the tree context menu on
+  touch (right-click untouched on desktop); app-bar "Done" flushes the save
+  through the exact ⌘S path and exits to the reader (conflict banner
+  surfaces on mtime mismatch); `interactive-widget=resizes-content`
+  viewport meta; 44px tap targets and always-visible code copy buttons on
+  coarse pointers.
+- **SYNC.md** — the Drive ↔ Autosync ↔ local-folder workflow doc (§5).
+- **.gitignore** no longer ignores `src-tauri/gen/` (ready for A0's commit).
+
+**Not possible in this container** (no Android SDK — `dl.google.com` is
+blocked by the network policy): `tauri android init`, so `src-tauri/gen/
+android` does not exist yet, and therefore no manifest edits, no on-device
+verification, no APK. That is exactly the Mac-side list below.
+
+### Mac checklist (work down in order; one phase per session)
+
+1. **A0 — toolchain + first boot.** Android Studio (SDK, NDK,
+   platform-tools), JDK 17, `rustup target add aarch64-linux-android
+   x86_64-linux-android`; `npm run tauri android init`; **commit the
+   generated `src-tauri/gen/android/`** (it will carry the manifest edits
+   below and must never be regenerated); `npm run tauri android dev` to the
+   device. ✓ App opens showing the shell; ✓ desktop `npm run tauri dev`
+   still works from the same checkout.
+2. **Manifest edits** (in `src-tauri/gen/android/app/src/main/
+   AndroidManifest.xml`, then commit):
+   - `<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />`
+     (A1 — All Files Access; the in-app explainer and settings deep-link are
+     already built. If the opener plugin can't launch the
+     `android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION` intent as written,
+     adjust `ALL_FILES_ACCESS_SETTINGS_URI` in
+     `src/components/FolderBrowser.tsx` — it's a single clearly-marked
+     constant — or add the tiny Kotlin intent-launcher PLAN-ANDROID.md §6
+     sanctions.)
+   - An intent-filter on the main activity for `.md` opens (A4):
+     `text/markdown` and `text/x-markdown` MIME types plus a `*.md`
+     path-pattern VIEW filter, feeding the existing `open-file` event (its
+     `RunEvent::Opened` handler already compiles for Android).
+3. **A1 on-device.** Grant All Files Access via the first-run flow; pick a
+   real folder in the FolderBrowser; tree loads; open/edit/save; the adb
+   kill-test (`adb shell "echo x >> /storage/emulated/0/.../file.md"`
+   mid-edit, then save) raises the conflict banner; binned file lands in
+   `.mdreader-bin/` and vanishes from the tree.
+4. **A2/A3 on-device.** Hardware back walks history and exits only from the
+   root (PLAN-ANDROID.md §3); drawer/TOC sheet/search behave; on-screen
+   keyboard keeps the caret visible; Done flushes; long-press context menu;
+   test at 100% and 130% system font scale — the measure must shrink, never
+   scroll horizontally. If hairlines vanish, the device WebView is <111
+   (no `color-mix()`) — ship the plain-rgba fallback for `--border-faint`
+   (§7 risk note).
+5. **A4 — sync round trip.** Install Autosync, pair the Drive folder per
+   SYNC.md, verify its checklist (desktop→phone, phone→desktop, mid-edit
+   conflict, no false positives at rest). Files-app "Open With → Markdown
+   Reader" opens the `.md` (workspace too if inside the root).
+6. **A5 — packaging.** Personal keystore, signing in the Gradle config,
+   `npm run tauri android build -- --apk --target aarch64`; confirm the
+   adaptive icon (the mipmap set from `npx tauri icon` is already in
+   `src-tauri/icons/android/`... if absent, rerun `npx tauri icon`);
+   sensible `versionName`/`versionCode`. ✓ APK installs from a file, opens,
+   retains its root across reinstall, right icon in the launcher.
+
+**Known decisions/gaps to be aware of on the Mac:**
+- `pick_root` is a stub on Android (returns an error; the frontend's
+  `isAndroid()` branch never calls it) — folder choice goes through
+  FolderBrowser → `set_root`.
+- The FolderBrowser overlay is deliberately outside the hardware-back
+  contract (PLAN-ANDROID.md §3 enumerates the tracked overlays); its Cancel
+  affordance closes it. Wire it in later only if it feels wrong in hand.
+- Browser-mode `vault.listDirs` serves a small fake directory tree so the
+  FolderBrowser is testable in Chromium; real listing is the Rust command.
+
 ## What was built, all sessions
 
 - **Scaffold (Session A/Phase 0).** Tauri 2 + React 18 + TS + Vite, plugins

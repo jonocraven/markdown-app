@@ -1,11 +1,12 @@
 # Markdown Reader — markdown viewer/editor (Tauri 2 + React + TS)
-Read PLAN.md before any work. Current phase: Phase 6 (polish + packaging) COMPLETE
-pending Mac verification — see NEXT_STEPS.md for the pre-ship checklist.
-✓ App icon, native menu bar (App/File/Edit/View/Go/Window + About), print stylesheet,
-file ops (create/rename/delete-to-bin), README all built and verified in this
-container (cargo check/clippy clean, all 5 regression scripts pass). Nothing left to
-build — what remains is verifying it all on a real Mac (WKWebView, a real window, a
-real filesystem) before `tauri build`.
+Read PLAN.md before any work. Current phase: Phase 7 (Android — PLAN-ANDROID.md),
+container-executable work COMPLETE: A1 storage code (list_dirs/set_root, android
+delete-to-.mdreader-bin, FolderBrowser, resume-refresh), A2 responsive shell +
+back-button contract, A3 touch/editor ergonomics, SYNC.md, and the committed
+regression suite (tests/, six scripts). What remains needs a Mac with a device
+attached — A0 (tauri android init + first boot), manifest edits, on-device A1–A4
+checks and A5 packaging — see NEXT_STEPS.md "Android" section. Desktop Phase 6
+remains pending its own Mac verification pass (same file).
 
 ## Rules
 - Viewer-first. The Reader's typography is the product; never regress it.
@@ -25,10 +26,14 @@ real filesystem) before `tauri build`.
 
 ## Commands
 npm run tauri dev · npm run tauri build · npm run typecheck ·
+npm run test:all (builds once, serves vite preview on :4173, runs all six
+Playwright regression scripts — see tests/README.md; individual scripts via
+test:smoke/links/edit/search/fileops/mobile) ·
 npm run dev (browser-only mode: opens samples/torture-test.md against an
 in-memory vault of every file under samples/, with full link routing and
-history — no Tauri shell needed; use for typography and link-routing work) ·
-cargo fmt/clippy in src-tauri
+history — no Tauri shell needed; use for typography and link-routing work;
+`?platform=android` forces the Android/mobile paths for testing) ·
+cargo fmt/clippy in src-tauri (check the aarch64-linux-android target too)
 
 ## Layout notes
 - src/markdown/ — the unified pipeline and its custom plugins (wikilinks,
@@ -63,3 +68,21 @@ cargo fmt/clippy in src-tauri
   delegates the actual write to App.tsx via TaskToggleContext — it applies
   the change optimistically to `source` then writes through vault.writeFile
   with the tracked mtime, surfacing the same conflict banner on failure.
+
+## Android (Phase 7 — PLAN-ANDROID.md)
+- One codebase: Android differences via media queries / coarse-pointer checks
+  in TS and #[cfg(target_os = "android")] in Rust. No Mobile* component forks.
+- Storage: All Files Access with real paths (PLAN-ANDROID.md §2). The Rust
+  core is unchanged; folder picking uses the in-app browser, delete goes to
+  .mdreader-bin/ on Android. Never introduce SAF/content:// URIs into the core.
+- The 5 desktop Playwright scripts + mobiletest.mjs must all pass after every
+  session. Desktop `npm run tauri dev` must keep working from this checkout.
+- src-tauri/gen/android is committed and hand-edited (manifest, activity).
+  Never rerun `tauri android init` over it. (It does not exist yet — it is
+  generated in Phase A0 on the Mac; .gitignore already stopped ignoring it.)
+- src/historyBridge.ts owns the WebView-history ↔ app-history mirroring that
+  makes the Android hardware back button work (PLAN-ANDROID.md §3). Read its
+  header before touching navigation, overlays, or the store's back/forward.
+- src/platform.ts: isAndroid() (with the ?platform=android dev override) and
+  isCoarsePointer(); src/hooks/useIsMobile.ts: <768px or Android — keep the
+  breakpoint in sync with src/styles/mobile.css.
