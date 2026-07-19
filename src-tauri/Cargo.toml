@@ -24,4 +24,6 @@ notify = "8"
 ignore = "0.4"
 grep-searcher = "0.1"
 grep-regex = "0.1"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
 trash = "5"

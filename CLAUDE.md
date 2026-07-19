@@ -1,11 +1,16 @@
 # Markdown Reader — markdown viewer/editor (Tauri 2 + React + TS)
-Read PLAN.md before any work. Current phase: Phase 6 (polish + packaging) COMPLETE
-pending Mac verification — see NEXT_STEPS.md for the pre-ship checklist.
+Read PLAN.md (and PLAN-ANDROID.md for Android work) before any work. Phase 6
+(desktop polish + packaging) is COMPLETE pending Mac verification — see
+NEXT_STEPS.md for the pre-ship checklist. Phase 7 (Android, PLAN-ANDROID.md)
+is IN PROGRESS: Phase A0 (toolchain + first boot) is done — the app installs
+and opens on a physical device showing the existing desktop-shaped shell with
+the empty state; desktop `npm run tauri dev` still works from this checkout.
+Phase A1 (storage) is next.
 ✓ App icon, native menu bar (App/File/Edit/View/Go/Window + About), print stylesheet,
 file ops (create/rename/delete-to-bin), README all built and verified in this
 container (cargo check/clippy clean, all 5 regression scripts pass). Nothing left to
-build — what remains is verifying it all on a real Mac (WKWebView, a real window, a
-real filesystem) before `tauri build`.
+build on desktop — what remains is verifying it all on a real Mac (WKWebView, a real
+window, a real filesystem) before `tauri build`.
 
 ## Rules
 - Viewer-first. The Reader's typography is the product; never regress it.
@@ -63,3 +68,24 @@ cargo fmt/clippy in src-tauri
   delegates the actual write to App.tsx via TaskToggleContext — it applies
   the change optimistically to `source` then writes through vault.writeFile
   with the tracked mtime, surfacing the same conflict banner on failure.
+
+## Android (Phase 7 — PLAN-ANDROID.md)
+- One codebase: Android differences via media queries / coarse-pointer checks
+  in TS and #[cfg(target_os = "android")] in Rust. No Mobile* component forks.
+- Storage: All Files Access with real paths (PLAN-ANDROID.md §2). The Rust
+  core is unchanged; folder picking uses the in-app browser, delete goes to
+  .mdreader-bin/ on Android. Never introduce SAF/content:// URIs into the core.
+  As of A0, `pick_root`/`delete_file` are `#[cfg(target_os = "android")]`
+  stubs returning "not yet implemented" — Phase A1 replaces them for real.
+- The 5 desktop Playwright scripts + mobiletest.mjs must all pass after every
+  session. Desktop `npm run tauri dev` must keep working from this checkout.
+- src-tauri/gen/android is committed and hand-edited (manifest, activity,
+  buildSrc). Never rerun `tauri android init` over it.
+- buildSrc/.../BuildTask.kt (the Rust cross-compile Gradle task) sets its own
+  PATH and CARGO_TARGET_*_LINKER env vars explicitly — Android Studio's
+  launched process doesn't inherit the login shell's PATH (no npm/cargo), and
+  `tauri android android-studio-script` (unlike `tauri android dev`) doesn't
+  reliably set the NDK linker itself, so cargo falls back to Apple's `cc`/ld
+  and fails with unrecognised GNU-style linker flags. If Android builds ever
+  start failing with "linking with `cc` failed" or "No such file or
+  directory" again, check this file first before assuming a real code bug.

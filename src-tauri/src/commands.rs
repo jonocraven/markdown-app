@@ -157,6 +157,7 @@ fn is_markdown(path: &Path) -> bool {
 // runs inline on the thread that received the IPC call (the main thread on
 // macOS), so it would be waiting on itself — a deadlock, seen as a freeze.
 // Marking the command async moves it onto Tauri's task runtime instead.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn pick_root(
     app: AppHandle,
@@ -178,6 +179,21 @@ pub async fn pick_root(
         path: path.to_string_lossy().to_string(),
         name,
     }))
+}
+
+// The dialog plugin's picker returns SAF content:// URIs on Android, which
+// the std::fs-based Rust core can't use. The real in-app folder browser
+// (list_dirs) lands in Phase A1 (PLAN-ANDROID.md §2); this stub only exists
+// so the crate compiles and links for Android in the meantime.
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn pick_root(
+    _app: AppHandle,
+    _state: State<'_, AppState>,
+) -> Result<Option<RootInfo>, CommandError> {
+    Err(CommandError::Io {
+        message: "folder picking is not yet implemented on Android".into(),
+    })
 }
 
 #[tauri::command]
@@ -376,6 +392,7 @@ pub fn rename_file(state: State<AppState>, from: String, to: String) -> Result<(
 
 /// Move a file to the system trash/bin rather than deleting it outright —
 /// mistakes should be recoverable from Finder's Bin, not gone forever.
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn delete_file(state: State<AppState>, path: String) -> Result<(), CommandError> {
     let (_root, abs) = resolve(&state, &path)?;
@@ -390,6 +407,17 @@ pub fn delete_file(state: State<AppState>, path: String) -> Result<(), CommandEr
         message: e.to_string(),
     })?;
     Ok(())
+}
+
+// The `trash` crate has no Android backend (PLAN-ANDROID.md §2). Real
+// delete-to-`.mdreader-bin/` support lands in Phase A1; this stub only
+// exists so the crate compiles and links for Android in the meantime.
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn delete_file(_state: State<AppState>, _path: String) -> Result<(), CommandError> {
+    Err(CommandError::Io {
+        message: "delete is not yet implemented on Android".into(),
+    })
 }
 
 /// Watch the root and emit debounced `fs-changed` events. Replaces any
