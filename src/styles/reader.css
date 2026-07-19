@@ -208,6 +208,15 @@
   position: relative;
 }
 
+/* No hover/precision pointer — enlarge the tap target around the same
+   13px visual box rather than growing the glyph itself. */
+@media (pointer: coarse) {
+  .reader input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+  }
+}
+
 .reader input[type="checkbox"]:checked {
   background: var(--accent);
   border-color: var(--accent);
@@ -312,6 +321,13 @@
 
 .code-copy:hover {
   color: var(--ink);
+}
+
+/* No hover on touch — the copy affordance has to be visible without one. */
+@media (pointer: coarse) {
+  .code-copy {
+    opacity: 1;
+  }
 }
 
 /* ---- Callouts: no colour; mono label, hairline border, paper fills ---- */

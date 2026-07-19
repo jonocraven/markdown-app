@@ -8,7 +8,7 @@ interface LinkPopoverProps {
    * for every kind. "disambiguate"/"create" are the wikilink-routing
    * popovers (PLAN.md §5); "tree-menu"/"tree-delete-confirm" are the file
    * tree's right-click context menu (PLAN.md §4/§7 Phase 6). */
-  kind: "disambiguate" | "create" | "tree-menu" | "tree-delete-confirm";
+  kind: "disambiguate" | "create" | "tree-menu" | "tree-delete-confirm" | "overflow-menu";
   onClose: () => void;
   children: ReactNode;
 }

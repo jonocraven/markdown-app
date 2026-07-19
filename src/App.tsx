@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PanelLeft, PanelRight, FolderOpen, FilePlus, ArrowLeft, ArrowRight } from "lucide-react";
+import {
+  PanelLeft,
+  PanelRight,
+  FolderOpen,
+  FilePlus,
+  ArrowLeft,
+  ArrowRight,
+  Menu,
+  Search,
+  Command,
+  Pencil,
+  MoreVertical,
+} from "lucide-react";
 import { Reader } from "./components/Reader";
 import { Editor } from "./components/Editor";
 import { ConflictBanner } from "./components/ConflictBanner";
@@ -16,8 +28,12 @@ import { ipc, isTauri, isAndroid } from "./ipc";
 import { vault, isConflictError } from "./vault";
 import { setTaskMarker } from "./taskMarkers";
 import { resolveLinkClick } from "./linkRouter";
-import { dirname, sanitizeFileName } from "./pathUtils";
+import { dirname, sanitizeFileName, stripMdExt } from "./pathUtils";
+import { useMediaQuery } from "./hooks/useMediaQuery";
 import type { RenderedDoc } from "./markdown/pipeline";
+
+/** Keep in sync with base.css's mobile shell breakpoint. */
+const MOBILE_QUERY = "(max-width: 768px), (pointer: coarse)";
 
 const ZOOM_STEPS = [0.85, 1, 1.15, 1.3, 1.5];
 const AUTOSAVE_IDLE_MS = 2000;
@@ -79,6 +95,8 @@ export default function App() {
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFileError, setNewFileError] = useState<string | null>(null);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
+  const [overflowMenu, setOverflowMenu] = useState<{ x: number; y: number } | null>(null);
+  const isMobileLayout = useMediaQuery(MOBILE_QUERY);
 
   // ---- Phase 4: editing / saving / conflict state ----
   // mtimeMs and dirty are plain refs — nothing renders their raw value
@@ -340,6 +358,17 @@ export default function App() {
     document.addEventListener("visibilitychange", handler);
     return () => document.removeEventListener("visibilitychange", handler);
   }, [setTree]);
+
+  // Tapping a file in the mobile drawer navigates and closes the drawer
+  // (PLAN-ANDROID.md §3); on desktop the tree pane isn't a drawer, so this
+  // is a no-op there beyond the plain navigate.
+  const handleDrawerNavigate = useCallback(
+    (path: string) => {
+      navigate(path);
+      if (isMobileLayout && useAppStore.getState().showTree) togglePane("tree");
+    },
+    [navigate, isMobileLayout, togglePane],
+  );
 
   const applyRoot = useCallback(
     async (root: { path: string; name: string }) => {
@@ -729,6 +758,72 @@ export default function App() {
     };
   }, [handleToggleEditing, goBack, goForward, togglePane, zoomIn, zoomOut, zoomReset, pickRoot]);
 
+  // Hardware back button contract (PLAN-ANDROID.md §3): every forward-moving
+  // action (opening a file, opening an overlay) pushes a browser history
+  // entry; popstate — fired by Android's back button, mirrored into the
+  // WebView's own history — closes the top-most open overlay if one exists,
+  // else walks the app's own back stack. `poppingRef` distinguishes a
+  // popstate-driven state change from a user-driven one so closing doesn't
+  // also push a new entry (which would fight the pop). Overlays closed via
+  // their own UI (Cancel/backdrop tap, not hardware back) just leave one
+  // inert history entry behind — a minor known gap, not a correctness bug:
+  // worst case is one extra back-press before hardware back reaches the
+  // previous document. Dormant on desktop (nothing but a real Android back
+  // button ever fires popstate here).
+  const poppingRef = useRef(false);
+
+  useEffect(() => {
+    if (!currentPath) return;
+    if (poppingRef.current) return;
+    history.pushState({ mdReader: true }, "");
+  }, [currentPath]);
+
+  useEffect(() => {
+    if (poppingRef.current) return;
+    if (searchOpen || quickSwitcherOpen || newFileOpen || folderPickerOpen || overflowMenu) {
+      history.pushState({ mdReader: true }, "");
+    }
+  }, [searchOpen, quickSwitcherOpen, newFileOpen, folderPickerOpen, overflowMenu]);
+
+  useEffect(() => {
+    if (!isMobileLayout) return;
+    if (poppingRef.current) return;
+    if (showTree || showToc) history.pushState({ mdReader: true }, "");
+    // Only the OPEN transition should push — re-running this effect on every
+    // showTree/showToc toggle (including closes) is fine since a push only
+    // happens when one of them is currently true, i.e. just opened.
+  }, [isMobileLayout, showTree, showToc]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      poppingRef.current = true;
+      if (searchOpen) setSearchOpen(false);
+      else if (quickSwitcherOpen) setQuickSwitcherOpen(false);
+      else if (newFileOpen) setNewFileOpen(false);
+      else if (folderPickerOpen) setFolderPickerOpen(false);
+      else if (overflowMenu) setOverflowMenu(null);
+      else if (isMobileLayout && showTree) togglePane("tree");
+      else if (isMobileLayout && showToc) togglePane("toc");
+      else if (useAppStore.getState().back.length > 0) goBack();
+      setTimeout(() => {
+        poppingRef.current = false;
+      }, 0);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [
+    searchOpen,
+    quickSwitcherOpen,
+    newFileOpen,
+    folderPickerOpen,
+    overflowMenu,
+    isMobileLayout,
+    showTree,
+    showToc,
+    togglePane,
+    goBack,
+  ]);
+
   // Show zoom level briefly when it changes
   const [showZoomBriefly, setShowZoomBriefly] = useState(false);
   useEffect(() => {
@@ -754,13 +849,65 @@ export default function App() {
 
   const showConflictBanner = conflict !== null && conflict.path === currentPath;
 
+  const appBarTitle = currentPath
+    ? stripMdExt(currentPath.split("/").pop() ?? currentPath)
+    : (rootName ?? "Markdown Reader");
+
   return (
     <div className="shell">
+      <header className="app-bar">
+        <button aria-label="Toggle file tree" onClick={() => togglePane("tree")}>
+          <Menu size={19} strokeWidth={1.5} />
+        </button>
+        <div className="app-bar-title">
+          <div className="app-bar-title-main">{appBarTitle}</div>
+          {currentPath && <div className="app-bar-title-path">{currentPath}</div>}
+        </div>
+        {editing ? (
+          <button className="app-bar-done" onClick={handleToggleEditing}>
+            Done
+          </button>
+        ) : (
+          <>
+            <button aria-label="Search" onClick={() => setSearchOpen(true)}>
+              <Search size={17} strokeWidth={1.5} />
+            </button>
+            <button aria-label="Quick open" onClick={() => setQuickSwitcherOpen(true)}>
+              <Command size={17} strokeWidth={1.5} />
+            </button>
+            {currentPath && (
+              <button aria-label="Edit" onClick={handleToggleEditing}>
+                <Pencil size={17} strokeWidth={1.5} />
+              </button>
+            )}
+            <button
+              aria-label="More"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setOverflowMenu({ x: rect.right, y: rect.bottom });
+              }}
+            >
+              <MoreVertical size={17} strokeWidth={1.5} />
+            </button>
+          </>
+        )}
+      </header>
+
+      {isMobileLayout && (showTree || showToc) && (
+        <div
+          className="mobile-scrim"
+          onClick={() => {
+            if (showTree) togglePane("tree");
+            if (showToc) togglePane("toc");
+          }}
+        />
+      )}
+
       {searchOpen ? (
         <SearchPanel open={searchOpen} onClose={() => setSearchOpen(false)} />
       ) : (
         showTree && (
-          <aside className="pane-tree">
+          <aside className="pane-tree mobile-open">
             {isTauri() && (
               <button className="tree-item" onClick={pickRoot} style={{ marginBottom: 4 }}>
                 <FolderOpen size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} />{" "}
@@ -777,11 +924,11 @@ export default function App() {
             >
               <FilePlus size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} /> New file
             </button>
-            <Favourites nodes={tree} currentPath={currentPath} onOpenFile={navigate} />
+            <Favourites nodes={tree} currentPath={currentPath} onOpenFile={handleDrawerNavigate} />
             <Tree
               nodes={tree}
               currentPath={currentPath}
-              onOpen={navigate}
+              onOpen={handleDrawerNavigate}
               onRenameFile={handleRenameFile}
               onDeleteFile={handleDeleteFile}
             />
@@ -870,7 +1017,7 @@ export default function App() {
       </main>
 
       {showToc && (
-        <aside className="pane-toc">
+        <aside className="pane-toc mobile-open">
           <Toc entries={doc?.toc ?? []} />
         </aside>
       )}
@@ -923,6 +1070,60 @@ export default function App() {
       )}
 
       <QuickSwitcher open={quickSwitcherOpen} onClose={() => setQuickSwitcherOpen(false)} />
+
+      {overflowMenu && (
+        <LinkPopover
+          x={overflowMenu.x}
+          y={overflowMenu.y}
+          kind="overflow-menu"
+          onClose={() => setOverflowMenu(null)}
+        >
+          <button
+            className="link-popover-item"
+            onClick={() => {
+              setOverflowMenu(null);
+              setNewFileError(null);
+              setNewFileOpen(true);
+            }}
+          >
+            New file
+          </button>
+          <button
+            className="link-popover-item"
+            onClick={() => {
+              setOverflowMenu(null);
+              togglePane("toc");
+            }}
+          >
+            {showToc ? "Hide contents" : "Contents"}
+          </button>
+          <button
+            className="link-popover-item"
+            onClick={() => {
+              zoomIn();
+            }}
+          >
+            Zoom in
+          </button>
+          <button
+            className="link-popover-item"
+            onClick={() => {
+              zoomOut();
+            }}
+          >
+            Zoom out
+          </button>
+          <button
+            className="link-popover-item"
+            onClick={() => {
+              setOverflowMenu(null);
+              zoomReset();
+            }}
+          >
+            Actual size
+          </button>
+        </LinkPopover>
+      )}
 
       <NewFileDialog
         open={newFileOpen}

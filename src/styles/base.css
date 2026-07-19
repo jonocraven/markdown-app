@@ -844,3 +844,162 @@ button {
   outline: 1px solid var(--ink);
   outline-offset: 1px;
 }
+
+/* ---- Mobile shell (Android / narrow viewport) — PLAN-ANDROID.md §3.
+   The desktop three-pane flex layout stays exactly as-is above this
+   breakpoint; below it the tree becomes a slide-in drawer, the TOC a
+   bottom sheet, and a new app bar (JSX in App.tsx, hidden on desktop by
+   the `display: none` below) replaces the desktop menu bar for actions
+   that only exist as keyboard shortcuts today (search, quick open, edit
+   toggle, new file, zoom). `env(safe-area-inset-*)` keeps chrome clear of
+   notches/camera cutouts and gesture-nav bars. ---- */
+
+.app-bar {
+  display: none;
+}
+
+@media (max-width: 768px), (pointer: coarse) {
+  .shell {
+    flex-direction: column;
+    position: relative;
+  }
+
+  .app-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 10px
+      max(14px, env(safe-area-inset-left));
+    border-bottom: var(--border-faint);
+    background: var(--paper);
+    z-index: 20;
+  }
+
+  .app-bar button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    color: var(--ink);
+  }
+
+  .app-bar-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .app-bar-title-main {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .app-bar-title-path {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--graphite-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .app-bar-done {
+    width: auto !important;
+    padding: 0 10px !important;
+    font-family: var(--font-mono);
+    font-size: var(--size-small);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+  }
+
+  .mobile-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(0, 0, 0, 0.35);
+    animation: mdreader-fade-in 0.15s var(--ease) both;
+  }
+
+  .pane-tree {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 85vw;
+    max-width: 320px;
+    z-index: 60;
+    background: var(--paper);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+    transform: translateX(-100%);
+    transition: transform 0.2s var(--ease);
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
+  .pane-tree.mobile-open {
+    transform: translateX(0);
+  }
+
+  .pane-doc {
+    width: 100%;
+  }
+
+  .pane-toc {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 65vh;
+    z-index: 60;
+    background: var(--paper);
+    border-left: none;
+    border-top: var(--border-hairline);
+    border-radius: 10px 10px 0 0;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
+    transform: translateY(100%);
+    transition: transform 0.2s var(--ease);
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+
+  .pane-toc.mobile-open {
+    transform: translateY(0);
+  }
+
+  .footer-chrome {
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+    padding-left: max(24px, env(safe-area-inset-left));
+    padding-right: max(24px, env(safe-area-inset-right));
+  }
+
+  .footer-nav button,
+  .footer-status button,
+  .footer-chrome > span > button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .search-panel {
+    width: 100%;
+  }
+
+  .tree-item,
+  .toc-item,
+  .quick-switcher-item {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+}
