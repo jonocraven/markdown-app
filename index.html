@@ -2,7 +2,13 @@
 <html lang="en-GB">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- interactive-widget=resizes-content (PLAN-ANDROID.md §3 "Editor"): on
+         Android, the on-screen keyboard shrinks the layout viewport (rather
+         than just overlaying content), so percentage/flex-based heights
+         (see src/styles/base.css's html/body/#root height:100%) resize with
+         it and keep the caret above the keyboard instead of behind it.
+         Ignored by desktop browsers/WKWebView — harmless there. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <title>Markdown Reader</title>
   </head>
   <body>

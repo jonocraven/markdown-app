@@ -24,4 +24,9 @@ notify = "8"
 ignore = "0.4"
 grep-searcher = "0.1"
 grep-regex = "0.1"
+
+# The `trash` crate has no Android backend (PLAN-ANDROID.md §2) — desktop-only.
+# delete_file's #[cfg(target_os = "android")] arm in commands.rs moves the
+# file into a hidden .mdreader-bin/ directory instead (see that function).
+[target.'cfg(not(target_os = "android"))'.dependencies]
 trash = "5"

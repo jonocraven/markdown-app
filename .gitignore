@@ -1,6 +1,9 @@
 node_modules/
 dist/
 src-tauri/target/
-src-tauri/gen/
+# Tauri's build script regenerates gen/schemas on every cargo build — keep it
+# ignored, but NOT gen/android (created once by `tauri android init` in Phase
+# A0 and then hand-edited/committed — see PLAN-ANDROID.md §7).
+src-tauri/gen/schemas/
 *.local
 .DS_Store

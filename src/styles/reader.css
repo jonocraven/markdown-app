@@ -222,6 +222,25 @@
   transform: rotate(40deg);
 }
 
+/* Enlarged tap area on coarse pointers (PLAN-ANDROID.md §3 "Touch
+   specifics"): an invisible ::before, centred on the same 13px box, taking
+   the effective hit target to ~44px without changing the visible size.
+   Desktop's mouse/hover interaction is untouched — this rule doesn't exist
+   outside the (pointer: coarse) query. A tap anywhere in ::before's painted
+   area registers as a click on the checkbox itself, since generated content
+   is part of the originating element's own hit-test region. */
+@media (pointer: coarse) {
+  .reader input[type="checkbox"]::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+
 /* ---- Tables: hairline rules only, no zebra ---- */
 
 .reader table {
@@ -312,6 +331,23 @@
 
 .code-copy:hover {
   color: var(--ink);
+}
+
+/* Always-visible copy button on coarse pointers (PLAN-ANDROID.md §3 "Touch
+   specifics"): on phones there is no hover, so the button must be visible
+   all the time. Desktop hover behaviour is unchanged.
+
+   Tap target: add padding to reach 44px minimum, using ::after to extend
+   the clickable area without changing the visual size. */
+@media (pointer: coarse) {
+  .code-copy {
+    opacity: 1;
+    padding: 10px 7px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 /* ---- Callouts: no colour; mono label, hairline border, paper fills ---- */

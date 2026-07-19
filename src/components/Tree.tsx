@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, FileText, Folder } from "lucide-react";
 import type { TreeNode } from "../ipc";
 import { useAppStore } from "../stores/appStore";
@@ -22,6 +22,16 @@ type ContextMenuState = {
   confirmDelete: boolean;
 };
 
+// Long-press-to-context-menu (PLAN-ANDROID.md §3 "Touch specifics"): a
+// ~500ms hold on a row opens the SAME menu right-click opens on desktop,
+// via onPointerDown/Move/Up/Cancel below — cancelled if the finger travels
+// more than this many px (a scroll, not a press-and-hold) or lifts before
+// the threshold (an ordinary tap). Gated on pointerType === "touch" so it
+// never fires for a mouse (which already has onContextMenu) or a coarse-but-
+// mouse-driven device.
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_MOVE_THRESHOLD_PX = 10;
+
 /**
  * File browser as a single-column drill-down with a breadcrumb — Finder's
  * *column* view needs horizontal room a narrow sidebar doesn't have (deep
@@ -43,6 +53,12 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  // Long-press state (see LONG_PRESS_MS above). Refs, not state: nothing
+  // needs to re-render while a press is building up.
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const nodeByPath = useMemo(() => new Map(nodes.map((n) => [n.path, n])), [nodes]);
 
@@ -89,16 +105,64 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
     return trail;
   }, [dir, rootName]);
 
-  const openMenu = (e: React.MouseEvent, node: TreeNode) => {
-    e.preventDefault();
+  const openMenuAt = (x: number, y: number, node: TreeNode) => {
     setMenu({
       path: node.path,
       name: stripMdExt(node.name),
       isDir: node.isDir,
-      x: e.clientX,
-      y: e.clientY,
+      x,
+      y,
       confirmDelete: false,
     });
+  };
+
+  const openMenu = (e: React.MouseEvent, node: TreeNode) => {
+    e.preventDefault();
+    openMenuAt(e.clientX, e.clientY, node);
+  };
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current !== null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleRowPointerDown = (e: React.PointerEvent, node: TreeNode) => {
+    if (e.pointerType !== "touch") return; // mouse/pen already have onContextMenu
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+    clearLongPressTimer();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null;
+      longPressFiredRef.current = true;
+      const start = pointerStartRef.current;
+      openMenuAt(start?.x ?? e.clientX, start?.y ?? e.clientY, node);
+    }, LONG_PRESS_MS);
+  };
+
+  const handleRowPointerMove = (e: React.PointerEvent) => {
+    const start = pointerStartRef.current;
+    if (!start) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.hypot(dx, dy) > LONG_PRESS_MOVE_THRESHOLD_PX) clearLongPressTimer();
+  };
+
+  const handleRowPointerEnd = () => {
+    clearLongPressTimer();
+    pointerStartRef.current = null;
+  };
+
+  /** The row's tap/navigate action — suppressed for the tap that follows a
+   * long-press-opened menu (the pointerup/click that ends the same touch
+   * gesture the timer fired during), so long-press never ALSO navigates. */
+  const handleRowActivate = (node: TreeNode) => {
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+    if (node.isDir) setDir(node.path);
+    else onOpen(node.path);
   };
 
   const startRename = () => {
@@ -157,8 +221,13 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
                 key={node.path}
                 className={`tree-item tree-col-item${node.path === currentPath ? " selected" : ""}`}
                 aria-current={node.path === currentPath}
-                onClick={() => (node.isDir ? setDir(node.path) : onOpen(node.path))}
+                onClick={() => handleRowActivate(node)}
                 onContextMenu={(e) => openMenu(e, node)}
+                onPointerDown={(e) => handleRowPointerDown(e, node)}
+                onPointerMove={handleRowPointerMove}
+                onPointerUp={handleRowPointerEnd}
+                onPointerCancel={handleRowPointerEnd}
+                onPointerLeave={handleRowPointerEnd}
               >
                 {node.isDir ? (
                   <Folder size={12} strokeWidth={1.5} />
@@ -173,6 +242,20 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
         )}
       </div>
 
+      {/* This context menu (opened by right-click on desktop, long-press on
+          touch — see handleRowPointerDown above) is deliberately NOT wired
+          through useHistoryBridge's pushOverlay/popOverlay. historyBridge.ts
+          documents the tracked "overlay" set as drawer / TOC sheet / search /
+          quick switcher / overflow menu — the mobile takeovers App.tsx
+          renders conditionally on isMobile. LinkPopover (this component, and
+          the wikilink disambiguate/create popovers in App.tsx) already
+          dismisses itself on outside click/Escape on desktop without ever
+          touching history, and long-press doesn't change that: it's a
+          popover anchored to a point, not a mobile-shell takeover, so a
+          hardware back press should just fall through to whatever this
+          module's popstate handler would otherwise do (walk nav history),
+          same as it does today when a disambiguate popover happens to be
+          open. Matching that existing pattern here is the point. */}
       {menu && !menu.confirmDelete && (
         <LinkPopover x={menu.x} y={menu.y} kind="tree-menu" onClose={() => setMenu(null)}>
           <p className="link-popover-label">{menu.name}</p>
