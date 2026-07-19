@@ -12,6 +12,11 @@ export interface RootInfo {
   name: string;
 }
 
+export interface DirEntry {
+  path: string; // absolute
+  name: string;
+}
+
 export interface TreeNode {
   path: string; // relative to root
   name: string;
@@ -44,8 +49,18 @@ export function isTauri(): boolean {
   return "__TAURI_INTERNALS__" in window;
 }
 
+/** Android's native dialog picker returns unusable content:// SAF URIs
+ * (PLAN-ANDROID.md §2), so folder picking there uses an in-app browser
+ * (FolderPickerDialog) instead of ipc.pickRoot. WebView reliably reports
+ * "Android" in the UA string — no native plugin needed for this check. */
+export function isAndroid(): boolean {
+  return /Android/i.test(navigator.userAgent);
+}
+
 export const ipc = {
   pickRoot: () => invoke<RootInfo | null>("pick_root"),
+  setRoot: (path: string) => invoke<RootInfo>("set_root", { path }),
+  listDirs: (path: string) => invoke<DirEntry[]>("list_dirs", { path }),
   currentRoot: () => invoke<RootInfo | null>("current_root"),
   readTree: () => invoke<TreeNode[]>("read_tree"),
   readFile: (path: string) => invoke<FileContent>("read_file", { path }),

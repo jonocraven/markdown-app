@@ -10,8 +10,9 @@ import { LinkPopover } from "./components/LinkPopover";
 import { SearchPanel } from "./components/SearchPanel";
 import { QuickSwitcher } from "./components/QuickSwitcher";
 import { NewFileDialog } from "./components/NewFileDialog";
+import { FolderPickerDialog } from "./components/FolderPickerDialog";
 import { useAppStore } from "./stores/appStore";
-import { ipc, isTauri } from "./ipc";
+import { ipc, isTauri, isAndroid } from "./ipc";
 import { vault, isConflictError } from "./vault";
 import { setTaskMarker } from "./taskMarkers";
 import { resolveLinkClick } from "./linkRouter";
@@ -77,6 +78,7 @@ export default function App() {
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFileError, setNewFileError] = useState<string | null>(null);
+  const [folderPickerOpen, setFolderPickerOpen] = useState(false);
 
   // ---- Phase 4: editing / saving / conflict state ----
   // mtimeMs and dirty are plain refs — nothing renders their raw value
@@ -313,13 +315,50 @@ export default function App() {
     return unsubscribe;
   }, [setTree]);
 
+  // Android suspends the app in the background and the notify watcher misses
+  // events while suspended, so returning to the foreground needs to manually
+  // catch up — same reload logic as the onExternalChange effect above, just
+  // triggered by visibility instead of a (missed) fs-changed event. Harmless
+  // on desktop: the watcher never actually missed anything there, so the
+  // mtime comparison below just no-ops.
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState !== "visible") return;
+      vault.listTree().then(setTree);
+      const open = useAppStore.getState().currentPath;
+      if (!open || dirtyRef.current) return;
+      vault.readFile(open).then(({ content, mtimeMs: mtime }) => {
+        if (mtime === mtimeRef.current) return;
+        setSource(content);
+        setMtimeMs(mtime);
+        if (useAppStore.getState().editing) {
+          setDraft(content);
+          setResetSeq((n) => n + 1);
+        }
+      });
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+  }, [setTree]);
+
+  const applyRoot = useCallback(
+    async (root: { path: string; name: string }) => {
+      setRoot(root.path, root.name);
+      setTree(await vault.listTree());
+      await ipc.watchRoot();
+    },
+    [setRoot, setTree],
+  );
+
   const pickRoot = useCallback(async () => {
+    if (isAndroid()) {
+      setFolderPickerOpen(true);
+      return;
+    }
     const root = await ipc.pickRoot();
     if (!root) return;
-    setRoot(root.path, root.name);
-    setTree(await vault.listTree());
-    await ipc.watchRoot();
-  }, [setRoot, setTree]);
+    await applyRoot(root);
+  }, [applyRoot]);
 
   // ---- File ops (PLAN.md §4/§7 Phase 6): create / rename / delete-to-bin ----
 
@@ -894,6 +933,16 @@ export default function App() {
           setNewFileError(null);
         }}
         onCreate={handleCreateFile}
+      />
+
+      <FolderPickerDialog
+        open={folderPickerOpen}
+        onClose={() => setFolderPickerOpen(false)}
+        onChoose={async (path) => {
+          const root = await ipc.setRoot(path);
+          setFolderPickerOpen(false);
+          await applyRoot(root);
+        }}
       />
     </div>
   );

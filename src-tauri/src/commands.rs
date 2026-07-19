@@ -10,6 +10,7 @@ use ignore::WalkBuilder;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
+#[cfg(not(target_os = "android"))]
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_store::StoreExt;
 
@@ -46,6 +47,13 @@ impl From<std::io::Error> for CommandError {
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RootInfo {
+    pub path: String,
+    pub name: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntry {
     pub path: String,
     pub name: String,
 }
@@ -206,6 +214,54 @@ pub fn current_root(state: State<AppState>) -> Option<RootInfo> {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default(),
     })
+}
+
+/// Confirms a root chosen through the in-app folder browser (Android, where
+/// the native dialog's SAF picker returns unusable content:// URIs — see
+/// list_dirs below). Desktop's pick_root both picks and sets the root in one
+/// native call; this is the missing "confirm" half of Android's browse-then-
+/// pick flow, doing exactly what the tail of pick_root does.
+#[tauri::command]
+pub fn set_root(
+    app: AppHandle,
+    state: State<AppState>,
+    path: String,
+) -> Result<RootInfo, CommandError> {
+    let path = PathBuf::from(path);
+    if !path.is_dir() {
+        return Err(CommandError::Io {
+            message: "not a directory".into(),
+        });
+    }
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string_lossy().to_string());
+    now_store_root(&app, &path);
+    state.lock().unwrap().root = Some(path.clone());
+    Ok(RootInfo {
+        path: path.to_string_lossy().to_string(),
+        name,
+    })
+}
+
+/// Non-recursive directory listing for the in-app folder browser (Android's
+/// SAF picker returns content:// URIs the std::fs-based core can't use — see
+/// PLAN-ANDROID.md §2). Takes an absolute path directly rather than going
+/// through resolve(), since browsing happens before any root is chosen.
+#[tauri::command]
+pub fn list_dirs(path: String) -> Result<Vec<DirEntry>, CommandError> {
+    let mut entries: Vec<DirEntry> = std::fs::read_dir(&path)?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().is_dir())
+        .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
+        .map(|e| DirEntry {
+            path: e.path().to_string_lossy().to_string(),
+            name: e.file_name().to_string_lossy().to_string(),
+        })
+        .collect();
+    entries.sort_by_key(|e| e.name.to_lowercase());
+    Ok(entries)
 }
 
 /// Recursive listing of markdown files and the directories that lead to
@@ -409,15 +465,43 @@ pub fn delete_file(state: State<AppState>, path: String) -> Result<(), CommandEr
     Ok(())
 }
 
-// The `trash` crate has no Android backend (PLAN-ANDROID.md §2). Real
-// delete-to-`.mdreader-bin/` support lands in Phase A1; this stub only
-// exists so the crate compiles and links for Android in the meantime.
+// The `trash` crate has no Android backend (PLAN-ANDROID.md §2). Move the
+// file into a `.mdreader-bin/` directory at the root instead — a rename, not
+// a new write path. read_tree's WalkBuilder already skips dot-directories,
+// so the bin stays invisible in the tree. Collisions get a millisecond
+// timestamp suffix rather than overwriting a previously-binned file.
 #[cfg(target_os = "android")]
 #[tauri::command]
-pub fn delete_file(_state: State<AppState>, _path: String) -> Result<(), CommandError> {
-    Err(CommandError::Io {
-        message: "delete is not yet implemented on Android".into(),
-    })
+pub fn delete_file(state: State<AppState>, path: String) -> Result<(), CommandError> {
+    let (root, abs) = resolve(&state, &path)?;
+
+    if !abs.exists() {
+        return Err(CommandError::Io {
+            message: format!("{path} does not exist"),
+        });
+    }
+
+    let bin = root.join(".mdreader-bin");
+    std::fs::create_dir_all(&bin)?;
+
+    let file_name = abs
+        .file_name()
+        .ok_or_else(|| CommandError::Io {
+            message: "invalid file name".into(),
+        })?
+        .to_string_lossy()
+        .to_string();
+    let mut dest = bin.join(&file_name);
+    if dest.exists() {
+        let now = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        dest = bin.join(format!("{file_name}.{now}"));
+    }
+
+    std::fs::rename(&abs, &dest)?;
+    Ok(())
 }
 
 /// Watch the root and emit debounced `fs-changed` events. Replaces any

@@ -2,10 +2,12 @@
 Read PLAN.md (and PLAN-ANDROID.md for Android work) before any work. Phase 6
 (desktop polish + packaging) is COMPLETE pending Mac verification — see
 NEXT_STEPS.md for the pre-ship checklist. Phase 7 (Android, PLAN-ANDROID.md)
-is IN PROGRESS: Phase A0 (toolchain + first boot) is done — the app installs
-and opens on a physical device showing the existing desktop-shaped shell with
-the empty state; desktop `npm run tauri dev` still works from this checkout.
-Phase A1 (storage) is next.
+is IN PROGRESS: Phase A0 (toolchain + first boot) and Phase A1 (storage) are
+done — `MANAGE_EXTERNAL_STORAGE` + a native first-run redirect to the system
+settings toggle, an in-app folder-browser picker (`list_dirs`/`set_root`),
+real Android delete-to-`.mdreader-bin/`, and resume-refresh on
+`visibilitychange` are all verified on a physical device. Phase A2
+(responsive shell + back button) is next.
 ✓ App icon, native menu bar (App/File/Edit/View/Go/Window + About), print stylesheet,
 file ops (create/rename/delete-to-bin), README all built and verified in this
 container (cargo check/clippy clean, all 5 regression scripts pass). Nothing left to
@@ -73,10 +75,22 @@ cargo fmt/clippy in src-tauri
 - One codebase: Android differences via media queries / coarse-pointer checks
   in TS and #[cfg(target_os = "android")] in Rust. No Mobile* component forks.
 - Storage: All Files Access with real paths (PLAN-ANDROID.md §2). The Rust
-  core is unchanged; folder picking uses the in-app browser, delete goes to
-  .mdreader-bin/ on Android. Never introduce SAF/content:// URIs into the core.
-  As of A0, `pick_root`/`delete_file` are `#[cfg(target_os = "android")]`
-  stubs returning "not yet implemented" — Phase A1 replaces them for real.
+  core is unchanged; folder picking uses the in-app browser
+  (FolderPickerDialog.tsx + `list_dirs`/`set_root`), delete goes to
+  `.mdreader-bin/` via `#[cfg(target_os = "android")]` `delete_file` (a
+  rename, timestamped on collision). Never introduce SAF/content:// URIs
+  into the core. `pick_root`'s Android stub is unused in practice —
+  App.tsx's `pickRoot` branches on `isAndroid()` (ipc.ts, UA-sniffed) to
+  the picker dialog instead of ever calling it.
+- `MainActivity.kt`'s `onResume` checks `Environment.isExternalStorageManager()`
+  and launches the system "All files access" settings screen for this app if
+  ungranted — no custom Tauri plugin/JS bridge, just the generated activity
+  (PLAN-ANDROID.md §2 explicitly sanctions this). Returning from Settings
+  re-checks automatically.
+- Resume-refresh (App.tsx, a `visibilitychange` listener) re-reads the tree
+  and the open file's mtime on foreground, since Android suspends the app
+  and the `notify` watcher misses events while suspended — reuses the same
+  reload logic as the `vault.onExternalChange` effect just above it.
 - The 5 desktop Playwright scripts + mobiletest.mjs must all pass after every
   session. Desktop `npm run tauri dev` must keep working from this checkout.
 - src-tauri/gen/android is committed and hand-edited (manifest, activity,

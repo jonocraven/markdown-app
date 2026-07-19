@@ -788,6 +788,21 @@ button {
   color: var(--graphite-light);
 }
 
+/* ---- Folder picker dialog (Android in-app folder browser) ---- */
+
+.folder-picker-dialog {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+
+.folder-picker-list {
+  flex: 1;
+  min-height: 200px;
+  max-height: 40vh;
+}
+
 .new-file-input:focus {
   outline: 1px solid var(--ink);
   outline-offset: 1px;

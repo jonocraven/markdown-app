@@ -178,7 +178,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::pick_root,
+            commands::set_root,
             commands::current_root,
+            commands::list_dirs,
             commands::read_tree,
             commands::read_file,
             commands::write_file,
