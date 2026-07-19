@@ -333,6 +333,23 @@
   color: var(--ink);
 }
 
+/* Always-visible copy button on coarse pointers (PLAN-ANDROID.md §3 "Touch
+   specifics"): on phones there is no hover, so the button must be visible
+   all the time. Desktop hover behaviour is unchanged.
+
+   Tap target: add padding to reach 44px minimum, using ::after to extend
+   the clickable area without changing the visual size. */
+@media (pointer: coarse) {
+  .code-copy {
+    opacity: 1;
+    padding: 10px 7px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
 /* ---- Callouts: no colour; mono label, hairline border, paper fills ---- */
 
 .callout {

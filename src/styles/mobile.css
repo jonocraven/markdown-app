@@ -275,3 +275,112 @@
     padding-top: max(14px, env(safe-area-inset-top));
   }
 }
+
+/* ====================================================================
+   44px tap targets for coarse pointers (PLAN-ANDROID.md §3 "Touch
+   specifics"): minimum touch target size on phones. Applied via
+   min-height and padding adjustments that keep the visual design
+   language intact. Desktop's fine-pointer interaction unchanged.
+   ==================================================================== */
+@media (pointer: coarse) {
+  /* Tree rows and breadcrumb controls: drill-down and breadcrumb navigations. */
+  .tree-col-item {
+    min-height: 44px;
+    padding: 10px 10px;
+  }
+
+  /* Favourites rows. */
+  .favourite-item,
+  .favourite-unpin {
+    min-height: 44px;
+  }
+
+  .favourite-row {
+    align-items: center;
+  }
+
+  /* Favourite unpin button is 18×18 visual, needs 44px hit area. */
+  .favourite-unpin {
+    width: 44px;
+    height: 44px;
+    margin: -13px 0;
+  }
+
+  /* Breadcrumb/folder-browser navigation. */
+  .tree-crumb {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 8px;
+  }
+
+  /* Search results: every search hit row needs 44px. */
+  .search-hit {
+    min-height: 44px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Quick switcher result rows. */
+  .quick-switcher-item {
+    min-height: 44px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* TOC entries in the bottom sheet: already have 10px padding (mobile.css),
+     verify they reach 44px. */
+  .toc-sheet .toc-item {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Conflict banner buttons. */
+  .conflict-banner-button {
+    min-height: 44px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Link popover items and buttons (used in disambiguation popovers and
+     folder-browser dialogs). */
+  .link-popover-item {
+    min-height: 44px;
+    padding: 12px 8px;
+    display: flex;
+    align-items: center;
+  }
+
+  .link-popover-button {
+    min-height: 44px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Folder browser rows (inherit from .tree-col-item adjustment above). */
+  .folder-browser-use {
+    min-height: 44px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  /* Back/Forward buttons if visible (footer-nav). Not explicitly for coarse,
+     but harmless on mobile. */
+  .footer-nav button {
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
