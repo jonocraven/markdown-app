@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { renderMarkdown, type RenderedDoc } from "../markdown/pipeline";
-import { renderMermaidBlocks } from "../markdown/mermaid";
+import { renderMermaidBlocks, retintMermaidBlocks } from "../markdown/mermaid";
 import { styleLinks } from "../markdown/linkStyling";
+import { onThemeChange } from "../theme";
 import { TaskToggleContext } from "./ReaderBlocks";
 
 interface ReaderProps {
@@ -58,6 +59,17 @@ export function Reader({ source, path, onLinkClick, onRendered, onTaskToggle }: 
     void renderMermaidBlocks(el);
     void styleLinks(el, path);
   }, [doc, animate, path]);
+
+  // Mermaid bakes colours into a static SVG at render time (unlike Shiki's
+  // CSS-variable trick), so a light/dark switch needs an explicit redraw —
+  // everything else in the reader repaints for free via CSS custom
+  // properties. See src/markdown/mermaid.ts.
+  useEffect(() => {
+    return onThemeChange(() => {
+      const el = containerRef.current;
+      if (el) void retintMermaidBlocks(el);
+    });
+  }, []);
 
   // Single delegated click handler: never let the webview navigate natively.
   const handleClick = (e: React.MouseEvent) => {

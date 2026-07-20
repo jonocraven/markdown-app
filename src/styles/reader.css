@@ -308,6 +308,30 @@
   font-family: inherit;
 }
 
+/* Shiki dual-theme (src/markdown/highlight.ts requests both "vitesse-light"
+   and "vitesse-dark" per token): token colours ship as inline styles with
+   --shiki-dark custom properties alongside the plain light `color`, so
+   switching is a pure CSS override here rather than a re-render. Matches
+   both the explicit [data-theme="dark"] attribute and the OS-level
+   preference when the user hasn't overridden it (theme = "system"). */
+:root[data-theme="dark"] .shiki,
+:root[data-theme="dark"] .shiki span {
+  color: var(--shiki-dark) !important;
+  font-style: var(--shiki-dark-font-style, inherit) !important;
+  font-weight: var(--shiki-dark-font-weight, inherit) !important;
+  text-decoration: var(--shiki-dark-text-decoration, inherit) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .shiki,
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .shiki span {
+    color: var(--shiki-dark) !important;
+    font-style: var(--shiki-dark-font-style, inherit) !important;
+    font-weight: var(--shiki-dark-font-weight, inherit) !important;
+    text-decoration: var(--shiki-dark-text-decoration, inherit) !important;
+  }
+}
+
 .code-copy {
   position: absolute;
   top: 6px;
@@ -431,16 +455,30 @@
    read, not a hyperlink reference. */
 
 @media print {
-  /* True black-on-white for print. Every token below (hairlines, code
+  /* True black-on-white for print, regardless of dark mode. !important is
+     needed here: [data-theme="dark"] on :root has higher selector
+     specificity than this plain :root rule, and dark mode's own override
+     isn't scoped to screen — without !important a print in dark mode would
+     silently inherit the dark palette. Every token below (hairlines, code
      fills, callout fills) derives from these, so this one override carries
      through the whole stylesheet without duplicating rules. */
   :root {
-    --paper: #ffffff;
-    --paper-2: #ffffff;
-    --paper-3: #f0f0f0;
-    --ink: #000000;
-    --graphite: #2b2b2b;
-    --graphite-light: #555555;
+    --paper: #ffffff !important;
+    --paper-2: #ffffff !important;
+    --paper-3: #f0f0f0 !important;
+    --ink: #000000 !important;
+    --graphite: #2b2b2b !important;
+    --graphite-light: #555555 !important;
+  }
+
+  /* Same reasoning as above: force the light Shiki colour/weight/style even
+     when printing from dark mode. */
+  .shiki,
+  .shiki span {
+    color: var(--shiki-light, inherit) !important;
+    font-style: var(--shiki-light-font-style, inherit) !important;
+    font-weight: var(--shiki-light-font-weight, inherit) !important;
+    text-decoration: var(--shiki-light-text-decoration, inherit) !important;
   }
 
   @page {
@@ -449,7 +487,7 @@
 
   html,
   body {
-    background: #fff;
+    background: #fff !important;
   }
 
   /* All app chrome: panes, footer, banners, popovers, overlays, dialogs,

@@ -1,6 +1,19 @@
 <!doctype html>
 <html lang="en-GB">
   <head>
+    <!-- Set the theme attribute before first paint, from the mirror
+         src/theme.ts keeps in localStorage — avoids a flash of the wrong
+         palette while the real (possibly async, tauri-plugin-store-backed)
+         persisted setting loads. Absent/invalid value = "system", which
+         needs no attribute (see tokens.css). -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("markdownReader.themeMirror");
+          if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+        } catch (e) {}
+      })();
+    </script>
     <meta charset="UTF-8" />
     <!-- interactive-widget=resizes-content (PLAN-ANDROID.md §3 "Editor"): on
          Android, the on-screen keyboard shrinks the layout viewport (rather

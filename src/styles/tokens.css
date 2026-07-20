@@ -43,3 +43,36 @@
   --pane-tree-width: 256px;
   --pane-toc-width: 220px;
 }
+
+/* Dark mode: same monochrome-plus-one-accent system, inverted luminance —
+   not a second theme, the same design read in low light. Explicit choice
+   wins via [data-theme]; "system" (no attribute) follows the OS. See
+   src/theme.ts for how the attribute gets set, and reader.css for the
+   Shiki dual-theme override this pairs with. */
+:root[data-theme="dark"] {
+  --paper: #1a1b1e;
+  --paper-2: #202226;
+  --paper-3: #27292e;
+  --ink: #e8e9ec;
+  --graphite: #a3a6ad;
+  --graphite-light: #6b6e76;
+
+  --accent: #d9702f;
+  --accent-soft: #3a2a20;
+  --accent-ink: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --paper: #1a1b1e;
+    --paper-2: #202226;
+    --paper-3: #27292e;
+    --ink: #e8e9ec;
+    --graphite: #a3a6ad;
+    --graphite-light: #6b6e76;
+
+    --accent: #d9702f;
+    --accent-soft: #3a2a20;
+    --accent-ink: #ffffff;
+  }
+}

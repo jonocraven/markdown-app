@@ -61,6 +61,7 @@ export default function App() {
     editing,
     showTree,
     showToc,
+    theme,
     back,
     forward,
     setRoot,
@@ -71,6 +72,7 @@ export default function App() {
     togglePane,
     toggleEditing,
     setEditing,
+    setTheme,
     renamePath,
     removePath,
   } = useAppStore();
@@ -841,6 +843,15 @@ export default function App() {
             setNewFileError(null);
             setNewFileOpen(true);
             break;
+          case "theme-system":
+            setTheme("system");
+            break;
+          case "theme-light":
+            setTheme("light");
+            break;
+          case "theme-dark":
+            setTheme("dark");
+            break;
           default:
             break;
         }
@@ -864,6 +875,7 @@ export default function App() {
     pickRoot,
     requestOpenQuickSwitcher,
     requestOpenSearch,
+    setTheme,
   ]);
 
   // Show zoom level briefly when it changes
@@ -1058,6 +1070,14 @@ export default function App() {
                 }}
               >
                 New File
+              </button>
+              <button
+                className="overflow-menu-item"
+                onClick={() => {
+                  setTheme(theme === "system" ? "light" : theme === "light" ? "dark" : "system");
+                }}
+              >
+                Theme: {theme === "system" ? "System" : theme === "light" ? "Light" : "Dark"}
               </button>
             </OverflowMenu>
           )}
