@@ -17,9 +17,24 @@ use tauri_plugin_store::StoreExt;
 pub struct AppData {
     pub root: Option<PathBuf>,
     pub watcher: Option<RecommendedWatcher>,
+    /// A file opened via the OS (Files app "Open With", RunEvent::Opened in
+    /// lib.rs) that arrived before the frontend had a chance to register its
+    /// "open-file" listener — a cold start (app not already running) reaches
+    /// this point well before the WebView finishes loading JS, so the emit()
+    /// in lib.rs would otherwise be lost. take_pending_open below lets the
+    /// frontend collect it once on mount, in addition to listening live for
+    /// the warm-start case (app already running).
+    pub pending_open: Option<OpenFilePayload>,
 }
 
 pub type AppState = Mutex<AppData>;
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenFilePayload {
+    pub paths: Vec<String>,
+    pub unsupported: u32,
+}
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase", tag = "kind")]
@@ -214,6 +229,13 @@ pub fn current_root(state: State<AppState>) -> Option<RootInfo> {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default(),
     })
+}
+
+/// See AppData::pending_open — collects (and clears) a file opened via the
+/// OS before the frontend's live "open-file" listener was ready.
+#[tauri::command]
+pub fn take_pending_open(state: State<AppState>) -> Option<OpenFilePayload> {
+    state.lock().unwrap().pending_open.take()
 }
 
 /// Confirms a root chosen through the in-app folder browser (Android, where

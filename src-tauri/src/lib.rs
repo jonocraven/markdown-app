@@ -134,6 +134,7 @@ pub fn run() {
         .manage::<AppState>(Mutex::new(AppData {
             root: None,
             watcher: None,
+            pending_open: None,
         }));
 
     // Relay every custom menu item click to the frontend as a "menu" event
@@ -180,6 +181,7 @@ pub fn run() {
             commands::pick_root,
             commands::set_root,
             commands::current_root,
+            commands::take_pending_open,
             commands::list_dirs,
             commands::read_tree,
             commands::read_file,
@@ -215,10 +217,16 @@ pub fn run() {
                 }
 
                 if !paths.is_empty() || unsupported > 0 {
-                    let _ = _app_handle.emit(
-                        "open-file",
-                        serde_json::json!({ "paths": paths, "unsupported": unsupported }),
-                    );
+                    let payload = commands::OpenFilePayload { paths, unsupported };
+                    // Cold start (app not already running) reaches this point
+                    // well before the WebView has loaded JS and registered its
+                    // listener, so the emit() below is lost in that case — stash
+                    // it in state too so the frontend can collect it on mount
+                    // (take_pending_open) instead of only listening live.
+                    if let Some(state) = _app_handle.try_state::<AppState>() {
+                        state.lock().unwrap().pending_open = Some(payload.clone());
+                    }
+                    let _ = _app_handle.emit("open-file", payload);
                 }
             }
             #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "android")))]

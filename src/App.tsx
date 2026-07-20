@@ -385,46 +385,67 @@ export default function App() {
   // local folder) can't be read at all — the SAF/content:// bridge that
   // would need is explicitly out of scope (PLAN-ANDROID.md §2) — so that
   // case surfaces an explanation instead of silently doing nothing.
+  const handleOpenFile = useCallback(
+    async ({ paths, unsupported }: { paths: string[]; unsupported: number }) => {
+      if (paths.length === 0) {
+        if (unsupported > 0) {
+          alert(
+            "Markdown Reader can't open a file shared directly from an app like Drive — only files already in a folder synced to local storage (see SYNC.md).",
+          );
+        }
+        return;
+      }
+      const path = paths[0].replace(/\\/g, "/");
+      const rootPath = useAppStore.getState().rootPath?.replace(/\\/g, "/") ?? null;
+      if (rootPath && (path === rootPath || path.startsWith(`${rootPath}/`))) {
+        navigate(path === rootPath ? "" : path.slice(rootPath.length + 1));
+        return;
+      }
+      const idx = path.lastIndexOf("/");
+      const dir = idx === -1 ? path : path.slice(0, idx);
+      const name = idx === -1 ? path : path.slice(idx + 1);
+      try {
+        const root = await ipc.setRoot(dir);
+        await applyRoot(root);
+        navigate(name);
+      } catch (err) {
+        console.error("[markdown-reader] failed to open file from intent:", err);
+      }
+    },
+    [navigate, applyRoot],
+  );
+
+  // Warm start: app already running, RunEvent::Opened fires and the frontend
+  // (this listener) is already up to receive it.
   useEffect(() => {
     if (!isTauri()) return;
     let cancelled = false;
     let unlisten: (() => void) | null = null;
-    ipc
-      .onOpenFile(async ({ paths, unsupported }) => {
-        if (paths.length === 0) {
-          if (unsupported > 0) {
-            alert(
-              "Markdown Reader can't open a file shared directly from an app like Drive — only files already in a folder synced to local storage (see SYNC.md).",
-            );
-          }
-          return;
-        }
-        const path = paths[0].replace(/\\/g, "/");
-        const rootPath = useAppStore.getState().rootPath?.replace(/\\/g, "/") ?? null;
-        if (rootPath && (path === rootPath || path.startsWith(`${rootPath}/`))) {
-          navigate(path === rootPath ? "" : path.slice(rootPath.length + 1));
-          return;
-        }
-        const idx = path.lastIndexOf("/");
-        const dir = idx === -1 ? path : path.slice(0, idx);
-        const name = idx === -1 ? path : path.slice(idx + 1);
-        try {
-          const root = await ipc.setRoot(dir);
-          await applyRoot(root);
-          navigate(name);
-        } catch (err) {
-          console.error("[markdown-reader] failed to open file from intent:", err);
-        }
-      })
-      .then((f) => {
-        if (cancelled) f();
-        else unlisten = f;
-      });
+    ipc.onOpenFile(handleOpenFile).then((f) => {
+      if (cancelled) f();
+      else unlisten = f;
+    });
     return () => {
       cancelled = true;
       unlisten?.();
     };
-  }, [navigate, applyRoot]);
+  }, [handleOpenFile]);
+
+  // Cold start: the app was launched BY the "Open With" intent, so
+  // RunEvent::Opened fires in Rust well before this component has even
+  // mounted, let alone registered the listener above — that emit is lost,
+  // so Rust also stashes it in AppState (see take_pending_open in
+  // commands.rs) for this one-shot pickup on mount.
+  useEffect(() => {
+    if (!isTauri()) return;
+    ipc.takePendingOpen().then((payload) => {
+      if (payload) handleOpenFile(payload);
+    });
+    // Deliberately run once on mount only — handleOpenFile's own identity
+    // can change (it depends on navigate/applyRoot), but re-running this on
+    // every such change would risk re-consuming/re-acting on stale state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---- File ops (PLAN.md §4/§7 Phase 6): create / rename / delete-to-bin ----
 

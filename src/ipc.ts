@@ -89,4 +89,9 @@ export const ipc = {
     listen<{ paths: string[]; unsupported: number }>("open-file", (event) =>
       handler(event.payload),
     ),
+  /** A cold start (app launched fresh by the "Open With" intent) reaches
+   * RunEvent::Opened before the WebView has loaded JS, so the live
+   * "open-file" emit is lost — call this once on mount to collect it. */
+  takePendingOpen: () =>
+    invoke<{ paths: string[]; unsupported: number } | null>("take_pending_open"),
 };

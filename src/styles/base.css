@@ -503,7 +503,6 @@ button {
 .search-panel-header {
   flex-shrink: 0;
   padding: 14px;
-  padding-top: max(14px, env(safe-area-inset-top));
   border-bottom: var(--border-faint);
   display: flex;
   gap: 8px;
@@ -863,6 +862,16 @@ button {
   .shell {
     flex-direction: column;
     position: relative;
+    /* The app bar/footer sit in normal flex flow but are ALSO given a
+       z-index above the drawer/sheet/scrim so their toggle buttons stay
+       usable while open (see .app-bar/.footer-chrome below). That means
+       anything positioned at top:0/bottom:0 (the drawer, the scrim, the
+       search panel) would render UNDER them but still visually painted
+       OVER by their opaque background — these two custom properties let
+       those elements start their box just past the bar instead, so
+       nothing is hidden behind opaque chrome that happens to be on top. */
+    --app-bar-height: calc(max(10px, env(safe-area-inset-top)) + 44px + 10px);
+    --footer-height: calc(6px + 44px + max(6px, env(safe-area-inset-bottom)));
   }
 
   .app-bar {
@@ -931,7 +940,10 @@ button {
 
   .mobile-scrim {
     position: fixed;
-    inset: 0;
+    top: var(--app-bar-height);
+    left: 0;
+    right: 0;
+    bottom: var(--footer-height);
     z-index: 55;
     background: rgba(0, 0, 0, 0.35);
     animation: mdreader-fade-in 0.15s var(--ease) both;
@@ -939,8 +951,8 @@ button {
 
   .pane-tree {
     position: fixed;
-    top: 0;
-    bottom: 0;
+    top: var(--app-bar-height);
+    bottom: var(--footer-height);
     left: 0;
     width: 85vw;
     max-width: 320px;
@@ -949,9 +961,9 @@ button {
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
     transform: translateX(-100%);
     transition: transform 0.2s var(--ease);
-    padding-top: max(20px, env(safe-area-inset-top));
+    padding-top: 16px;
     padding-left: max(14px, env(safe-area-inset-left));
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    padding-bottom: 16px;
   }
 
   .pane-tree.mobile-open {
@@ -966,7 +978,7 @@ button {
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: var(--footer-height);
     width: auto;
     max-height: 65vh;
     z-index: 60;
@@ -977,7 +989,7 @@ button {
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
     transform: translateY(100%);
     transition: transform 0.2s var(--ease);
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    padding-bottom: 16px;
   }
 
   .pane-toc.mobile-open {
@@ -1005,6 +1017,8 @@ button {
 
   .search-panel {
     width: 100%;
+    top: var(--app-bar-height);
+    bottom: var(--footer-height);
   }
 
   .tree-item,
