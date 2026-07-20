@@ -36,10 +36,14 @@ window, a real filesystem) before `tauri build`.
 
 ## Commands
 npm run tauri dev · npm run tauri build · npm run typecheck ·
+npm run test:all (builds once, serves vite preview on :4173, runs the
+Playwright regression suite — see tests/README.md; individual scripts via
+test:smoke/links/edit/search/fileops/mobile — mobile is a known-failing
+gap, see the Android section below) ·
 npm run dev (browser-only mode: opens samples/torture-test.md against an
 in-memory vault of every file under samples/, with full link routing and
 history — no Tauri shell needed; use for typography and link-routing work) ·
-cargo fmt/clippy in src-tauri
+cargo fmt/clippy in src-tauri (check the aarch64-linux-android target too)
 
 ## Layout notes
 - src/markdown/ — the unified pipeline and its custom plugins (wikilinks,
@@ -95,12 +99,18 @@ cargo fmt/clippy in src-tauri
   and the open file's mtime on foreground, since Android suspends the app
   and the `notify` watcher misses events while suspended — reuses the same
   reload logic as the `vault.onExternalChange` effect just above it.
-- The 5 desktop Playwright scripts + mobiletest.mjs are referenced by earlier
-  planning docs but aren't present in this checkout (no `*.spec.*`/Playwright
-  config anywhere, `package.json` has no test script) — that predates this
-  session, not something broken by it. Desktop `npm run tauri dev` (verified)
-  and `cargo check`/`clippy` (verified, both host and `aarch64-linux-android`
-  targets) are the only automated checks actually run here.
+- The regression suite (`tests/*.mjs`, `npm run test:all`/`test:smoke`/etc.)
+  covers the 5 desktop flows cleanly (smoke, links, edit, search, fileops).
+  `mobiletest.mjs` does not pass here and is a known gap, not a false-green:
+  it was written against a different, container-only session's DOM contract
+  for the mobile shell (separate `.drawer` element, footer absent from the
+  DOM entirely on mobile, different class names/aria-labels throughout) —
+  reconciling it means either reworking this session's real-device-verified
+  mobile shell to match assumptions from a session with no device to verify
+  against, or properly rewriting the test; don't paper over it with a
+  mechanical rename. Desktop `npm run tauri dev`, `cargo check`/`clippy`
+  (both host and `aarch64-linux-android` targets), and a signed release APK
+  installing/booting on a physical device are all separately verified.
 - src-tauri/gen/android is committed and hand-edited (manifest, activity,
   buildSrc). Never rerun `tauri android init` over it.
 - Responsive shell (Phase A2, PLAN-ANDROID.md §3): `@media (max-width: 768px),

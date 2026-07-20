@@ -19,11 +19,13 @@ export type { DirEntry, LinkIndexEntry, SearchHit };
  * also the root of the fake directory tree browser mode serves below. */
 export const ANDROID_ROOT = "/storage/emulated/0";
 
-/** Browser-mode-only fake directory tree so the FolderBrowser (Android-only
- * UI) is drivable in Chromium under the `?platform=android` override — this
- * container has no real Android filesystem to list. Keyed by absolute path,
- * values are child directory names (not files: list_dirs/listDirs only
- * ever returns directories). */
+/** Browser-mode-only fake directory tree, so FolderPickerDialog.tsx (the
+ * Android-only in-app folder picker) has something to list in Chromium,
+ * which has no real Android filesystem. Not reachable today — the picker
+ * only renders when isAndroid() is true, and browser mode never reports a
+ * real Android UA — but harmless to keep for a future dev-mode override.
+ * Keyed by absolute path, values are child directory names (not files:
+ * list_dirs/listDirs only ever returns directories). */
 const FAKE_ANDROID_DIRS: Record<string, string[]> = {
   [ANDROID_ROOT]: ["Documents", "Download", "Pictures"],
   [`${ANDROID_ROOT}/Documents`]: ["Notes"],
@@ -159,12 +161,11 @@ export const vault = {
     return buildTree(Array.from(browserFiles.keys()));
   },
 
-  /** Android-only in-app folder browser's subdirectory listing (see
-   * FolderBrowser.tsx) — an absolute path in, absolute child paths out.
+  /** Android-only in-app folder picker's subdirectory listing (see
+   * FolderPickerDialog.tsx) — an absolute path in, absolute child paths out.
    * Deliberately independent of the vault root (there may not be one yet).
    * Browser mode serves the FAKE_ANDROID_DIRS tree above, sorted the same
-   * way the Rust side sorts (case-insensitive by name), so drilling in and
-   * out is exercisable in Chromium under `?platform=android`. */
+   * way the Rust side sorts (case-insensitive by name). */
   async listDirs(path: string): Promise<DirEntry[]> {
     if (isTauri()) return ipc.listDirs(path);
     const children = FAKE_ANDROID_DIRS[path] ?? [];
@@ -173,13 +174,10 @@ export const vault = {
       .map((name) => ({ name, path: `${path}/${name}` }));
   },
 
-  /** Commit a folder chosen via the Android FolderBrowser as the vault root
-   * (mirrors ipc.setRoot's Rust semantics — src-tauri/src/commands.rs's
-   * set_root). Browser-mode stub: this container has no real Android
-   * filesystem, so it just resolves with a synthesised RootInfo rather than
-   * actually repointing the in-memory sample vault — it exists only so the
-   * FolderBrowser's "Use this folder" action is exercisable in Chromium,
-   * not to simulate a real root switch. */
+  /** Commit a folder chosen via the Android FolderPickerDialog as the vault
+   * root (mirrors ipc.setRoot's Rust semantics — src-tauri/src/commands.rs's
+   * set_root). Browser-mode stub: no real Android filesystem to repoint the
+   * vault to, so it just resolves with a synthesised RootInfo. */
   async setRoot(path: string): Promise<{ path: string; name: string }> {
     if (isTauri()) return ipc.setRoot(path);
     const name = path.split("/").filter(Boolean).pop() ?? path;
