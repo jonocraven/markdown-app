@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { TreeNode } from "../ipc";
 import { persistGet, persistSet } from "../persist";
+import { applyTheme, watchSystemTheme, type Theme } from "../theme";
 
 /**
  * App state, kept deliberately boring. "Navigation" is setting currentPath;
@@ -29,6 +30,10 @@ interface AppState {
   showTree: boolean;
   showToc: boolean;
 
+  // Light/dark/system, persisted. See src/theme.ts for how this is applied
+  // to the DOM — the store only owns the setting itself.
+  theme: Theme;
+
   // Pinned files/folders (persisted), root-relative paths, most-recent-last.
   favourites: string[];
 
@@ -44,6 +49,7 @@ interface AppState {
   togglePane: (pane: "tree" | "toc") => void;
   setBrowserDir: (dir: string) => void;
   toggleFavourite: (path: string) => void;
+  setTheme: (theme: Theme) => void;
   hydratePersistedState: () => Promise<void>;
 }
 
@@ -59,6 +65,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   showTree: true,
   showToc: true,
   favourites: [],
+  theme: "system",
 
   setRoot: (path, name) =>
     set({ rootPath: path, rootName: name, currentPath: null, browserDir: "", back: [], forward: [] }),
@@ -148,10 +155,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       return { favourites };
     }),
 
+  setTheme: (theme) => {
+    applyTheme(theme);
+    persistSet("markdownReader.theme", theme);
+    set({ theme });
+  },
+
   hydratePersistedState: async () => {
     const showTree = await persistGet("markdownReader.showTree", true);
     const showToc = await persistGet("markdownReader.showToc", true);
     const favourites = await persistGet<string[]>("markdownReader.favourites", []);
-    set({ showTree, showToc, favourites });
+    const theme = await persistGet<Theme>("markdownReader.theme", "system");
+    applyTheme(theme);
+    watchSystemTheme(() => get().theme);
+    set({ showTree, showToc, favourites, theme });
   },
 }));

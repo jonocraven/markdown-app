@@ -83,6 +83,20 @@ fn build_menu(app: &AppHandle<Wry>) -> tauri::Result<Menu<Wry>> {
     let zoom_reset = MenuItemBuilder::with_id("zoom-reset", "Actual Size")
         .accelerator("CmdOrCtrl+0")
         .build(app)?;
+
+    // Appearance: System/Light/Dark. Plain items rather than native
+    // checkmarks, consistent with the rest of this menu (toggle-tree etc.
+    // don't show checked state either) — App.tsx's theme store is the
+    // source of truth, this is just three buttons that set it.
+    let theme_system = MenuItemBuilder::with_id("theme-system", "System").build(app)?;
+    let theme_light = MenuItemBuilder::with_id("theme-light", "Light").build(app)?;
+    let theme_dark = MenuItemBuilder::with_id("theme-dark", "Dark").build(app)?;
+    let appearance_menu = SubmenuBuilder::new(app, "Appearance")
+        .item(&theme_system)
+        .item(&theme_light)
+        .item(&theme_dark)
+        .build()?;
+
     let view_menu = SubmenuBuilder::new(app, "View")
         .item(&toggle_edit)
         .separator()
@@ -92,6 +106,8 @@ fn build_menu(app: &AppHandle<Wry>) -> tauri::Result<Menu<Wry>> {
         .item(&zoom_in)
         .item(&zoom_out)
         .item(&zoom_reset)
+        .separator()
+        .item(&appearance_menu)
         .build()?;
 
     let back = MenuItemBuilder::with_id("back", "Back").build(app)?;

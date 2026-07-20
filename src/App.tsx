@@ -72,6 +72,7 @@ export default function App() {
     editing,
     showTree,
     showToc,
+    theme,
     back,
     forward,
     setRoot,
@@ -82,6 +83,7 @@ export default function App() {
     togglePane,
     toggleEditing,
     setEditing,
+    setTheme,
     renamePath,
     removePath,
   } = useAppStore();
@@ -802,6 +804,15 @@ export default function App() {
             setNewFileError(null);
             setNewFileOpen(true);
             break;
+          case "theme-system":
+            setTheme("system");
+            break;
+          case "theme-light":
+            setTheme("light");
+            break;
+          case "theme-dark":
+            setTheme("dark");
+            break;
           default:
             break;
         }
@@ -814,7 +825,17 @@ export default function App() {
       cancelled = true;
       unlisten?.();
     };
-  }, [handleToggleEditing, goBack, goForward, togglePane, zoomIn, zoomOut, zoomReset, pickRoot]);
+  }, [
+    handleToggleEditing,
+    goBack,
+    goForward,
+    togglePane,
+    zoomIn,
+    zoomOut,
+    zoomReset,
+    pickRoot,
+    setTheme,
+  ]);
 
   // Hardware back button contract (PLAN-ANDROID.md §3): every forward-moving
   // action (opening a file, opening an overlay) pushes a browser history
@@ -1183,6 +1204,14 @@ export default function App() {
             }}
           >
             Actual size
+          </button>
+          <button
+            className="link-popover-item"
+            onClick={() => {
+              setTheme(theme === "system" ? "light" : theme === "light" ? "dark" : "system");
+            }}
+          >
+            Theme: {theme === "system" ? "System" : theme === "light" ? "Light" : "Dark"}
           </button>
         </LinkPopover>
       )}

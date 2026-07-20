@@ -78,6 +78,24 @@ cargo fmt/clippy in src-tauri (check the aarch64-linux-android target too)
   delegates the actual write to App.tsx via TaskToggleContext — it applies
   the change optimistically to `source` then writes through vault.writeFile
   with the tracked mtime, surfacing the same conflict banner on failure.
+- src/theme.ts — dark mode. Same monochrome-plus-accent system, inverted
+  luminance (tokens.css's `:root[data-theme="dark"]` block plus a
+  `@media (prefers-color-scheme: dark)` fallback for the default "system"
+  setting) — not a second design. The setting itself lives in appStore
+  (`theme`/`setTheme`, persisted); theme.ts only applies the `data-theme`
+  attribute and mirrors it to plain localStorage so index.html's inline
+  script can set it before first paint (avoids a flash — the real
+  persisted value may load async via tauri-plugin-store). Shiki ships both
+  "vitesse-light" and "vitesse-dark" per token as CSS custom properties
+  (src/markdown/highlight.ts) so switching is a CSS override, not a
+  re-render — reader.css's dark-mode block reads `--shiki-dark`; the print
+  stylesheet forces the light values back with `!important` regardless of
+  theme. Mermaid can't do the CSS-variable trick (it bakes colours into a
+  static SVG), so it reads the live token values at render time and
+  Reader.tsx calls `retintMermaidBlocks` on the theme-changed event to
+  redraw already-open diagrams. Toggle lives in the desktop View menu
+  (Appearance submenu, src-tauri/src/lib.rs) and the overflow menu
+  (App.tsx's `overflow-menu` LinkPopover — cycles System → Light → Dark).
 
 ## Android (Phase 7 — PLAN-ANDROID.md)
 - One codebase: Android differences via media queries / coarse-pointer checks
