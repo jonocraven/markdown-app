@@ -405,7 +405,7 @@ export default function App() {
       const dir = idx === -1 ? path : path.slice(0, idx);
       const name = idx === -1 ? path : path.slice(idx + 1);
       try {
-        const root = await ipc.setRoot(dir);
+        const root = await vault.setRoot(dir);
         await applyRoot(root);
         navigate(name);
       } catch (err) {
@@ -1202,7 +1202,7 @@ export default function App() {
         open={folderPickerOpen}
         onClose={() => setFolderPickerOpen(false)}
         onChoose={async (path) => {
-          const root = await ipc.setRoot(path);
+          const root = await vault.setRoot(path);
           setFolderPickerOpen(false);
           await applyRoot(root);
         }}

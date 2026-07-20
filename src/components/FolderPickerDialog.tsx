@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import { Folder } from "lucide-react";
-import { ipc, type DirEntry } from "../ipc";
+import { vault, type DirEntry } from "../vault";
 
 const STORAGE_ROOT = "/storage/emulated/0";
 
@@ -29,7 +29,7 @@ export function FolderPickerDialog({ open, onClose, onChoose }: FolderPickerDial
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    ipc
+    vault
       .listDirs(dir)
       .then((list) => {
         if (!cancelled) {

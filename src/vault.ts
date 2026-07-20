@@ -9,10 +9,28 @@
  * App.tsx and src/linkRouter.ts call this facade, never `ipc` or
  * `isTauri()` directly, so the branching lives in exactly one place.
  */
-import { ipc, isTauri, type LinkIndexEntry, type TreeNode, type SearchHit } from "./ipc";
+import { ipc, isTauri, type DirEntry, type LinkIndexEntry, type TreeNode, type SearchHit } from "./ipc";
 
 // Re-export these types so callers can import from vault instead of ipc
-export type { LinkIndexEntry, SearchHit };
+export type { DirEntry, LinkIndexEntry, SearchHit };
+
+/** Starting point for the Android in-app folder browser — the root of
+ * Android's All Files Access grant (PLAN-ANDROID.md §2/§6). Real on-device;
+ * also the root of the fake directory tree browser mode serves below. */
+export const ANDROID_ROOT = "/storage/emulated/0";
+
+/** Browser-mode-only fake directory tree so the FolderBrowser (Android-only
+ * UI) is drivable in Chromium under the `?platform=android` override — this
+ * container has no real Android filesystem to list. Keyed by absolute path,
+ * values are child directory names (not files: list_dirs/listDirs only
+ * ever returns directories). */
+const FAKE_ANDROID_DIRS: Record<string, string[]> = {
+  [ANDROID_ROOT]: ["Documents", "Download", "Pictures"],
+  [`${ANDROID_ROOT}/Documents`]: ["Notes"],
+  [`${ANDROID_ROOT}/Documents/Notes`]: [],
+  [`${ANDROID_ROOT}/Download`]: [],
+  [`${ANDROID_ROOT}/Pictures`]: [],
+};
 
 // Eagerly inline every sample .md file as raw text, keyed by its path
 // relative to samples/ (which stands in for the vault root in browser mode).
@@ -139,6 +157,33 @@ export const vault = {
   async listTree(): Promise<TreeNode[]> {
     if (isTauri()) return ipc.readTree();
     return buildTree(Array.from(browserFiles.keys()));
+  },
+
+  /** Android-only in-app folder browser's subdirectory listing (see
+   * FolderBrowser.tsx) — an absolute path in, absolute child paths out.
+   * Deliberately independent of the vault root (there may not be one yet).
+   * Browser mode serves the FAKE_ANDROID_DIRS tree above, sorted the same
+   * way the Rust side sorts (case-insensitive by name), so drilling in and
+   * out is exercisable in Chromium under `?platform=android`. */
+  async listDirs(path: string): Promise<DirEntry[]> {
+    if (isTauri()) return ipc.listDirs(path);
+    const children = FAKE_ANDROID_DIRS[path] ?? [];
+    return [...children]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+      .map((name) => ({ name, path: `${path}/${name}` }));
+  },
+
+  /** Commit a folder chosen via the Android FolderBrowser as the vault root
+   * (mirrors ipc.setRoot's Rust semantics — src-tauri/src/commands.rs's
+   * set_root). Browser-mode stub: this container has no real Android
+   * filesystem, so it just resolves with a synthesised RootInfo rather than
+   * actually repointing the in-memory sample vault — it exists only so the
+   * FolderBrowser's "Use this folder" action is exercisable in Chromium,
+   * not to simulate a real root switch. */
+  async setRoot(path: string): Promise<{ path: string; name: string }> {
+    if (isTauri()) return ipc.setRoot(path);
+    const name = path.split("/").filter(Boolean).pop() ?? path;
+    return { path, name };
   },
 
   async readFile(path: string): Promise<{ content: string; mtimeMs: number }> {
