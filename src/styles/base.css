@@ -1015,6 +1015,12 @@ button {
     min-height: 44px;
   }
 
+  /* Redundant with the app bar's own hamburger toggle on mobile — desktop
+     (no app bar) keeps this as its only way to open the tree pane. */
+  .footer-tree-toggle {
+    display: none;
+  }
+
   .search-panel {
     width: 100%;
     top: var(--app-bar-height);

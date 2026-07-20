@@ -1037,7 +1037,11 @@ export default function App() {
                 <button onClick={goForward} disabled={forward.length === 0} aria-label="Forward">
                   <ArrowRight size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
                 </button>
-                <button onClick={() => togglePane("tree")} aria-label="Toggle file tree">
+                <button
+                  className="footer-tree-toggle"
+                  onClick={() => togglePane("tree")}
+                  aria-label="Toggle file tree"
+                >
                   <PanelLeft size={13} strokeWidth={1.5} style={{ verticalAlign: -2 }} />
                 </button>
               </span>

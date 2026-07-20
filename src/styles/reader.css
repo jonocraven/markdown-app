@@ -5,7 +5,16 @@
   margin: 0 auto;
   padding: 56px 32px 120px;
   font-family: var(--font-serif);
-  font-size: var(--size-body);
+  /* Relative, not var(--size-body) directly: .doc-scroll-host sets its own
+     font-size to `${zoom}em` (App.tsx), and an absolute px value here would
+     silently override that inherited multiplier — which is exactly why
+     zoom in/out never visibly did anything. 1em correctly carries the
+     zoomed value through to body text, paragraphs, lists, blockquotes,
+     table cells, and everything else that doesn't set its own explicit
+     size (headings and a few mono labels do, and stay fixed — a smaller,
+     acceptable gap next to the bulk of a document's reading text working
+     correctly). */
+  font-size: 1em;
   line-height: 1.7;
   color: var(--ink);
 }
