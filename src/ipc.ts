@@ -79,4 +79,14 @@ export const ipc = {
    * about/quit/undo/redo are handled natively and never reach here). */
   onMenuEvent: (handler: (id: string) => void): Promise<UnlistenFn> =>
     listen<string>("menu", (event) => handler(event.payload)),
+  /** Files opened via the OS — Files app "Open With", a .md double-click,
+   * drag-onto-app (macOS) — see src-tauri/src/lib.rs's RunEvent::Opened
+   * handler. `unsupported` counts URLs that couldn't convert to a real
+   * path (e.g. an Android content:// share from an app like Drive). */
+  onOpenFile: (
+    handler: (payload: { paths: string[]; unsupported: number }) => void,
+  ): Promise<UnlistenFn> =>
+    listen<{ paths: string[]; unsupported: number }>("open-file", (event) =>
+      handler(event.payload),
+    ),
 };

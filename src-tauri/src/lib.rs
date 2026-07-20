@@ -196,19 +196,29 @@ pub fn run() {
         .run(|_app_handle, event| {
             #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
             if let RunEvent::Opened { urls } = event {
-                // Emit open-file event to the frontend with the file paths
-                let paths: Vec<String> = urls
-                    .iter()
-                    .filter_map(|url| {
-                        // Convert file:// URLs to paths
-                        url.to_file_path().ok().and_then(|p| {
-                            p.to_str().map(|s| s.to_string())
-                        })
-                    })
-                    .collect();
+                // file:// URLs convert to real paths our std::fs-based core can
+                // read. content:// URLs (Android apps like Drive sharing a file
+                // that isn't necessarily downloaded locally — PLAN-ANDROID.md
+                // §2's SAF/content:// bridge is explicitly out of scope) can't
+                // be converted at all; to_file_path() simply fails for them.
+                // Report the count so the frontend can tell the user why
+                // nothing opened, instead of silently doing nothing (which
+                // read as "Open With doesn't work" — it partly doesn't, by
+                // design, for that specific source).
+                let mut paths: Vec<String> = Vec::new();
+                let mut unsupported = 0u32;
+                for url in &urls {
+                    match url.to_file_path().ok().and_then(|p| p.to_str().map(|s| s.to_string())) {
+                        Some(s) => paths.push(s),
+                        None => unsupported += 1,
+                    }
+                }
 
-                if !paths.is_empty() {
-                    let _ = _app_handle.emit("open-file", serde_json::json!({ "paths": paths }));
+                if !paths.is_empty() || unsupported > 0 {
+                    let _ = _app_handle.emit(
+                        "open-file",
+                        serde_json::json!({ "paths": paths, "unsupported": unsupported }),
+                    );
                 }
             }
             #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "android")))]

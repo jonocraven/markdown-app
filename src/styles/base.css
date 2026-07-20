@@ -412,7 +412,7 @@ button {
 
 .link-popover {
   position: fixed;
-  z-index: 50;
+  z-index: 120;
   min-width: 220px;
   max-width: 340px;
   font-family: var(--font-mono);
@@ -496,13 +496,14 @@ button {
   background: var(--paper);
   display: flex;
   flex-direction: column;
-  z-index: 30;
+  z-index: 65;
   animation: mdreader-slide-in 0.15s var(--ease) both;
 }
 
 .search-panel-header {
   flex-shrink: 0;
   padding: 14px;
+  padding-top: max(14px, env(safe-area-inset-top));
   border-bottom: var(--border-faint);
   display: flex;
   gap: 8px;
@@ -657,7 +658,7 @@ button {
 .quick-switcher-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 100;
   background: rgba(0, 0, 0, 0.3);
   animation: mdreader-fade-in 0.15s var(--ease) both;
 }
@@ -669,7 +670,7 @@ button {
   transform: translate(-50%, -50%);
   width: 90%;
   max-width: 420px;
-  z-index: 50;
+  z-index: 110;
   background: var(--paper);
   border: var(--border-hairline);
   border-radius: var(--radius);
@@ -762,7 +763,7 @@ button {
   transform: translate(-50%, -50%);
   width: 90%;
   max-width: 360px;
-  z-index: 50;
+  z-index: 110;
   background: var(--paper);
   border: var(--border-hairline);
   border-radius: var(--radius);
@@ -873,7 +874,12 @@ button {
       max(14px, env(safe-area-inset-left));
     border-bottom: var(--border-faint);
     background: var(--paper);
-    z-index: 20;
+    /* Above the drawer/sheet (60) and their scrim (55) — the hamburger
+       button (and the rest of the bar) stays visible and tappable as a
+       consistent way to close them, instead of disappearing under the
+       drawer the moment it opens (PLAN-ANDROID.md §3 feedback). */
+    z-index: 70;
+    position: relative;
   }
 
   .app-bar button {
@@ -982,6 +988,12 @@ button {
     padding-bottom: max(6px, env(safe-area-inset-bottom));
     padding-left: max(24px, env(safe-area-inset-left));
     padding-right: max(24px, env(safe-area-inset-right));
+    /* Same reasoning as the app bar: stay above the drawer/sheet (60) and
+       their scrim (55) so the tree/TOC toggle buttons remain visible and
+       tappable as a way to close what they just opened, not just open it. */
+    position: relative;
+    z-index: 70;
+    background: var(--paper);
   }
 
   .footer-nav button,
@@ -997,9 +1009,18 @@ button {
 
   .tree-item,
   .toc-item,
-  .quick-switcher-item {
+  .quick-switcher-item,
+  .link-popover-item {
     min-height: 44px;
     display: flex;
     align-items: center;
+  }
+
+  /* A table wider than the reading column scrolls within its own box
+     instead of dragging the whole page sideways. */
+  .reader table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }

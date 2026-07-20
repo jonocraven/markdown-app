@@ -182,17 +182,6 @@ export default function App() {
     };
   }, [setRoot, setTree]);
 
-  // Listen for open-file event (Finder "Open With" or drag-onto-app).
-  // Full open-workspace behaviour lands in a later phase; for now just log it.
-  useEffect(() => {
-    if (!isTauri()) return;
-    // Dynamic import to avoid issues in browser mode
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen<{ paths: string[] }>("open-file", (event) => {
-        console.log("[markdown-reader] open-file event:", event.payload.paths);
-      });
-    });
-  }, []);
 
   /**
    * Conflict-safe write. Guarded against overlapping writes (checkbox
@@ -359,16 +348,15 @@ export default function App() {
     return () => document.removeEventListener("visibilitychange", handler);
   }, [setTree]);
 
-  // Tapping a file in the mobile drawer navigates and closes the drawer
-  // (PLAN-ANDROID.md §3); on desktop the tree pane isn't a drawer, so this
-  // is a no-op there beyond the plain navigate.
-  const handleDrawerNavigate = useCallback(
-    (path: string) => {
-      navigate(path);
-      if (isMobileLayout && useAppStore.getState().showTree) togglePane("tree");
-    },
-    [navigate, isMobileLayout, togglePane],
-  );
+  // Any navigation — from the drawer, quick switcher, search, a link, a
+  // favourite — closes the mobile drawer if it's open (PLAN-ANDROID.md §3;
+  // "tapping a file navigates and closes the drawer" applies regardless of
+  // *where* the tap that triggered navigation happened). No-op on desktop,
+  // where the tree pane isn't a drawer.
+  useEffect(() => {
+    if (!isMobileLayout || !currentPath) return;
+    if (useAppStore.getState().showTree) togglePane("tree");
+  }, [currentPath, isMobileLayout, togglePane]);
 
   const applyRoot = useCallback(
     async (root: { path: string; name: string }) => {
@@ -388,6 +376,55 @@ export default function App() {
     if (!root) return;
     await applyRoot(root);
   }, [applyRoot]);
+
+  // Files opened via the OS (Files app "Open With", a .md double-click on
+  // desktop, or drag-onto-app on macOS). If the path is already inside the
+  // current root, just navigate; otherwise switch the workspace root to the
+  // file's own folder so it can actually be shown. content:// shares (e.g.
+  // tapping "Open With" straight from the Drive app rather than a synced
+  // local folder) can't be read at all — the SAF/content:// bridge that
+  // would need is explicitly out of scope (PLAN-ANDROID.md §2) — so that
+  // case surfaces an explanation instead of silently doing nothing.
+  useEffect(() => {
+    if (!isTauri()) return;
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+    ipc
+      .onOpenFile(async ({ paths, unsupported }) => {
+        if (paths.length === 0) {
+          if (unsupported > 0) {
+            alert(
+              "Markdown Reader can't open a file shared directly from an app like Drive — only files already in a folder synced to local storage (see SYNC.md).",
+            );
+          }
+          return;
+        }
+        const path = paths[0].replace(/\\/g, "/");
+        const rootPath = useAppStore.getState().rootPath?.replace(/\\/g, "/") ?? null;
+        if (rootPath && (path === rootPath || path.startsWith(`${rootPath}/`))) {
+          navigate(path === rootPath ? "" : path.slice(rootPath.length + 1));
+          return;
+        }
+        const idx = path.lastIndexOf("/");
+        const dir = idx === -1 ? path : path.slice(0, idx);
+        const name = idx === -1 ? path : path.slice(idx + 1);
+        try {
+          const root = await ipc.setRoot(dir);
+          await applyRoot(root);
+          navigate(name);
+        } catch (err) {
+          console.error("[markdown-reader] failed to open file from intent:", err);
+        }
+      })
+      .then((f) => {
+        if (cancelled) f();
+        else unlisten = f;
+      });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [navigate, applyRoot]);
 
   // ---- File ops (PLAN.md §4/§7 Phase 6): create / rename / delete-to-bin ----
 
@@ -924,11 +961,11 @@ export default function App() {
             >
               <FilePlus size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} /> New file
             </button>
-            <Favourites nodes={tree} currentPath={currentPath} onOpenFile={handleDrawerNavigate} />
+            <Favourites nodes={tree} currentPath={currentPath} onOpenFile={navigate} />
             <Tree
               nodes={tree}
               currentPath={currentPath}
-              onOpen={handleDrawerNavigate}
+              onOpen={navigate}
               onRenameFile={handleRenameFile}
               onDeleteFile={handleDeleteFile}
             />
