@@ -14,6 +14,7 @@ export type LinkAction =
   | { type: "navigate"; path: string; anchor?: string }
   | { type: "scroll"; id: string }
   | { type: "external" }
+  | { type: "open-local"; path: string }
   | { type: "disambiguate"; candidates: string[] }
   | { type: "create-offer"; path: string; title: string }
   | { type: "noop" };
@@ -31,6 +32,10 @@ function filenameSlug(text: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function isMarkdownPath(path: string): boolean {
+  return /\.(?:md|markdown)$/i.test(path);
 }
 
 export async function resolveLinkClick(
@@ -87,11 +92,19 @@ export async function resolveLinkClick(
   if (!pathPart) return { type: "noop" };
 
   const targetPath = joinRelative(currentDir, pathPart);
-  const exists = await vault.exists(targetPath);
-  if (!exists) {
+  const target = await vault.pathInfo(targetPath);
+  if (!target) {
     // Broken standard link: already styled .broken-link by the post-mount
     // pass; PLAN.md §5 only offers the create-on-click flow for wikilinks.
     return { type: "noop" };
+  }
+
+  if (!target.isDir && !isMarkdownPath(targetPath)) {
+    return { type: "open-local", path: target.path };
+  }
+
+  if (target.isDir) {
+    return { type: "open-local", path: target.path };
   }
 
   return {

@@ -36,6 +36,7 @@ export async function styleLinks(container: HTMLElement, currentPath: string): P
     const [pathPart] = href.split("#");
     if (!pathPart) continue;
     const target = joinRelative(currentDir, pathPart);
-    a.classList.toggle("broken-link", !paths.has(target));
+    const exists = paths.has(target) || (await vault.pathInfo(target)) !== null;
+    a.classList.toggle("broken-link", !exists);
   }
 }
