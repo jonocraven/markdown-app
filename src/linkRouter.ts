@@ -100,11 +100,11 @@ export async function resolveLinkClick(
   }
 
   if (!target.isDir && !isMarkdownPath(targetPath)) {
-    return { type: "open-local", path: target.path };
+    return { type: "open-local", path: targetPath };
   }
 
   if (target.isDir) {
-    return { type: "open-local", path: target.path };
+    return { type: "open-local", path: targetPath };
   }
 
   return {

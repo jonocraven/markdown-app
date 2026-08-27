@@ -72,6 +72,7 @@ export const ipc = {
   readTree: () => invoke<TreeNode[]>("read_tree"),
   readFile: (path: string) => invoke<FileContent>("read_file", { path }),
   pathInfo: (path: string) => invoke<PathInfo | null>("path_info", { path }),
+  openLocal: (path: string) => invoke<void>("open_local", { path }),
   writeFile: (path: string, content: string, expectedMtimeMs: number) =>
     invoke<FileContent>("write_file", { path, content, expectedMtimeMs }),
   createFile: (path: string) => invoke<FileContent>("create_file", { path }),

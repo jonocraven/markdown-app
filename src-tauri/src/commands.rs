@@ -383,6 +383,18 @@ pub fn path_info(state: State<AppState>, path: String) -> Result<Option<PathInfo
     }))
 }
 
+/// Open a root-relative non-Markdown target with macOS's default application.
+/// Keeping the opener native means the webview never receives permission to
+/// launch an arbitrary path: `resolve` still rejects traversal outside the
+/// folder the user selected before anything reaches the OS.
+#[tauri::command]
+pub fn open_local(state: State<AppState>, path: String) -> Result<(), CommandError> {
+    let (_root, abs) = resolve(&state, &path)?;
+    tauri_plugin_opener::open_path(&abs, None::<&str>).map_err(|error| CommandError::Io {
+        message: error.to_string(),
+    })
+}
+
 /// Atomic write shared by every command that puts bytes on disk: write to a
 /// temp file in the same directory, then rename over the target. Rename is
 /// atomic on the same filesystem, so a reader (or Drive sync) never sees a
