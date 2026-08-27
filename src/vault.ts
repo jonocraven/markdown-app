@@ -9,10 +9,10 @@
  * App.tsx and src/linkRouter.ts call this facade, never `ipc` or
  * `isTauri()` directly, so the branching lives in exactly one place.
  */
-import { ipc, isTauri, type DirEntry, type LinkIndexEntry, type TreeNode, type SearchHit } from "./ipc";
+import { ipc, isTauri, type DirEntry, type LinkIndexEntry, type TreeNode, type SearchHit, type PathInfo } from "./ipc";
 
 // Re-export these types so callers can import from vault instead of ipc
-export type { DirEntry, LinkIndexEntry, SearchHit };
+export type { DirEntry, LinkIndexEntry, SearchHit, PathInfo };
 
 /** Starting point for the Android in-app folder browser — the root of
  * Android's All Files Access grant (PLAN-ANDROID.md §2/§6). Real on-device;
@@ -41,6 +41,15 @@ const modules = import.meta.glob("../samples/**/*.md", {
   import: "default",
   eager: true,
 }) as Record<string, string>;
+
+// Browser mode does not render non-Markdown files, but it still needs to
+// recognise them as valid link targets so link-routing tests match Tauri.
+const nonMarkdownModules = import.meta.glob("../samples/**/!(*.md)", {
+  eager: true,
+}) as Record<string, unknown>;
+const browserNonMarkdownPaths = new Set(
+  Object.keys(nonMarkdownModules).map((modPath) => modPath.replace(/^\.\.\/samples\//, "")),
+);
 
 interface BrowserFile {
   content: string;
@@ -233,6 +242,19 @@ export const vault = {
       return index.some((e) => e.path === path);
     }
     return browserFiles.has(path);
+  },
+
+  /** Resolve a root-relative path without widening filesystem access. This
+   * lets the link router distinguish an in-app Markdown target from a valid
+   * local file or folder that should open with the OS default application. */
+  async pathInfo(path: string): Promise<PathInfo | null> {
+    if (isTauri()) return ipc.pathInfo(path);
+    if (browserFiles.has(path) || browserNonMarkdownPaths.has(path)) {
+      return { path, isDir: false };
+    }
+    const prefix = `${path.replace(/\/$/, "")}/`;
+    const isDir = [...browserFiles.keys(), ...browserNonMarkdownPaths].some((p) => p.startsWith(prefix));
+    return isDir ? { path, isDir: true } : null;
   },
 
   /** Create a new file with caller-supplied content (the broken-wikilink

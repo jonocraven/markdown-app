@@ -27,10 +27,28 @@ await run("linktest", async () => {
     await check.ok("relative link navigates to the target file", async () => {
       await openFromRootBrowser(page, "index");
       await page.locator(".doc-path", { hasText: "index.md" }).waitFor({ timeout: 5000 });
-      await page.locator(".reader a", { hasText: "Linked note" }).click();
+      await page.getByRole("list").getByRole("link", { name: "Linked note" }).click();
       await page.locator(".doc-path", { hasText: "linked-note.md" }).waitFor({ timeout: 5000 });
       const path = await page.locator(".doc-path").first().textContent();
       assertEqual(path, "linked-note.md", "relative link did not navigate correctly");
+    });
+
+    await check.ok("relative Markdown links inside tables navigate in-app", async () => {
+      await openFromRootBrowser(page, "index");
+      await page.locator(".doc-path", { hasText: "index.md" }).waitFor({ timeout: 5000 });
+      await page.locator(".reader table a", { hasText: "Linked note" }).click();
+      await page.locator(".doc-path", { hasText: "linked-note.md" }).waitFor({ timeout: 5000 });
+    });
+
+    await check.ok("relative HTML links open outside the reader", async () => {
+      await page.locator(".reader a", { hasText: "torture test" }).click();
+      await page.locator(".doc-path", { hasText: "torture-test.md" }).waitFor({ timeout: 5000 });
+      await openFromRootBrowser(page, "index");
+      await page.locator(".doc-path", { hasText: "index.md" }).waitFor({ timeout: 5000 });
+      const popup = page.waitForEvent("popup");
+      await page.locator(".reader table a", { hasText: "Planner" }).click();
+      await (await popup).close();
+      assertEqual(await page.locator(".doc-path").first().textContent(), "index.md", "local HTML link should not navigate the reader");
     });
 
     await check.ok("wikilink on the target page navigates back via [[torture test]]", async () => {
