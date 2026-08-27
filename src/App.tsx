@@ -560,8 +560,7 @@ export default function App() {
           break;
         case "open-local":
           if (isTauri()) {
-            const { openPath } = await import("@tauri-apps/plugin-opener");
-            await openPath(action.path);
+            await ipc.openLocal(action.path);
           } else {
             window.open(action.path, "_blank", "noopener,noreferrer");
           }
