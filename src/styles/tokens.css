@@ -39,7 +39,10 @@
   --stagger: 60ms;
 
   /* Layout */
-  --reading-width: 70ch;
+  /* The document pane is deliberately fluid: wide markdown tables should use
+     the available desktop space instead of being forced into a book measure. */
+  --reading-width: 100%;
+  --reading-gutter: clamp(24px, 4vw, 72px);
   --pane-tree-width: 256px;
   --pane-toc-width: 220px;
 }

@@ -47,6 +47,24 @@ await run("smoke", async () => {
       assert(headerText.includes("Category"), "table header missing expected column");
     });
 
+    await check.ok("reader and tables use the available document pane width", async () => {
+      const [reader, pane, table] = await Promise.all([
+        page.locator(".reader").first().boundingBox(),
+        page.locator(".pane-doc").boundingBox(),
+        page.locator(".reader table").first().boundingBox(),
+      ]);
+      assert(reader && pane && table, "reader layout boxes should be available");
+      assert(Math.abs(reader.width - pane.width) < 2, `reader width ${reader.width}px should fill its ${pane.width}px pane`);
+      assert(table.width > reader.width * 0.75, `table width ${table.width}px should use most of the ${reader.width}px reader pane`);
+    });
+
+    await check.ok("table columns have readable spacing", async () => {
+      const cellPadding = await page.locator(".reader table tbody td").first().evaluate((cell) =>
+        getComputedStyle(cell).paddingRight,
+      );
+      assert(cellPadding === "24px", `expected 24px spacing between table columns, got ${cellPadding}`);
+    });
+
     await check.ok("task-list checkboxes render with data-task-index", async () => {
       const count = await page.locator("[data-task-index]").count();
       assert(count === 4, `expected 4 task checkboxes, got ${count}`);
