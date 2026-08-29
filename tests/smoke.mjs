@@ -58,6 +58,13 @@ await run("smoke", async () => {
       assert(table.width > reader.width * 0.75, `table width ${table.width}px should use most of the ${reader.width}px reader pane`);
     });
 
+    await check.ok("table columns have readable spacing", async () => {
+      const cellPadding = await page.locator(".reader table tbody td").first().evaluate((cell) =>
+        getComputedStyle(cell).paddingRight,
+      );
+      assert(cellPadding === "24px", `expected 24px spacing between table columns, got ${cellPadding}`);
+    });
+
     await check.ok("task-list checkboxes render with data-task-index", async () => {
       const count = await page.locator("[data-task-index]").count();
       assert(count === 4, `expected 4 task checkboxes, got ${count}`);
