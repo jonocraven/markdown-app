@@ -558,6 +558,13 @@ export default function App() {
         case "create-offer":
           setPopover({ kind: "create", path: action.path, title: action.title, ...point });
           break;
+        case "open-local":
+          if (isTauri()) {
+            await ipc.openLocal(action.path);
+          } else {
+            window.open(action.path, "_blank", "noopener,noreferrer");
+          }
+          break;
         case "external":
         case "noop":
           break;

@@ -11,3 +11,8 @@ stem, and a deliberately broken link.
 - [API spec, Endpoints section](./specs/api-spec.md#endpoints) — a relative link with an anchor.
 - [[overview]] — deliberately ambiguous: both `specs/overview.md` and `notes/overview.md` share this stem. Clicked from here (the root), the two candidates are equidistant, so this should open a disambiguation popover.
 - [Archive](./archive/old-plan.md) — contains a link to a file that does not exist, and a broken wikilink.
+
+| Resource | Opens |
+|---|---|
+| [Linked note](./linked-note.md) | Inside Markdown Reader |
+| [Planner](./planner.html) | In the system default application |

@@ -29,6 +29,13 @@ export interface FileContent {
   mtimeMs: number;
 }
 
+/** A root-scoped file or directory resolved by the Rust core. `path` is
+ * absolute in Tauri mode, so the opener can hand it to the OS safely. */
+export interface PathInfo {
+  path: string;
+  isDir: boolean;
+}
+
 export interface SearchHit {
   path: string;
   line: number;
@@ -64,6 +71,8 @@ export const ipc = {
   currentRoot: () => invoke<RootInfo | null>("current_root"),
   readTree: () => invoke<TreeNode[]>("read_tree"),
   readFile: (path: string) => invoke<FileContent>("read_file", { path }),
+  pathInfo: (path: string) => invoke<PathInfo | null>("path_info", { path }),
+  openLocal: (path: string) => invoke<void>("open_local", { path }),
   writeFile: (path: string, content: string, expectedMtimeMs: number) =>
     invoke<FileContent>("write_file", { path, content, expectedMtimeMs }),
   createFile: (path: string) => invoke<FileContent>("create_file", { path }),

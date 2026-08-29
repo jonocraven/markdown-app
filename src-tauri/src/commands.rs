@@ -91,6 +91,13 @@ pub struct FileContent {
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct PathInfo {
+    pub path: String,
+    pub is_dir: bool,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchHit {
     pub path: String,
     pub line: u64,
@@ -357,6 +364,34 @@ pub fn read_file(state: State<AppState>, path: String) -> Result<FileContent, Co
     Ok(FileContent {
         content,
         mtime_ms: mtime_ms(&meta),
+    })
+}
+
+/// Resolve a root-relative link target and report whether it is a file or a
+/// directory. Returning the absolute path is intentional: the frontend hands
+/// only this already-validated path to Tauri's system opener for non-Markdown
+/// links, never an unchecked href from the document.
+#[tauri::command]
+pub fn path_info(state: State<AppState>, path: String) -> Result<Option<PathInfo>, CommandError> {
+    let (_root, abs) = resolve(&state, &path)?;
+    let Ok(meta) = std::fs::metadata(&abs) else {
+        return Ok(None);
+    };
+    Ok(Some(PathInfo {
+        path: abs.to_string_lossy().to_string(),
+        is_dir: meta.is_dir(),
+    }))
+}
+
+/// Open a root-relative non-Markdown target with macOS's default application.
+/// Keeping the opener native means the webview never receives permission to
+/// launch an arbitrary path: `resolve` still rejects traversal outside the
+/// folder the user selected before anything reaches the OS.
+#[tauri::command]
+pub fn open_local(state: State<AppState>, path: String) -> Result<(), CommandError> {
+    let (_root, abs) = resolve(&state, &path)?;
+    tauri_plugin_opener::open_path(&abs, None::<&str>).map_err(|error| CommandError::Io {
+        message: error.to_string(),
     })
 }
 

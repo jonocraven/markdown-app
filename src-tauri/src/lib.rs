@@ -201,6 +201,8 @@ pub fn run() {
             commands::list_dirs,
             commands::read_tree,
             commands::read_file,
+            commands::path_info,
+            commands::open_local,
             commands::write_file,
             commands::create_file,
             commands::rename_file,
