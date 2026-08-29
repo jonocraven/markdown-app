@@ -3,7 +3,8 @@
 .reader {
   max-width: var(--reading-width);
   margin: 0 auto;
-  padding: 56px 32px 120px;
+  box-sizing: border-box;
+  padding: 56px var(--reading-gutter) 120px;
   font-family: var(--font-serif);
   /* Relative, not var(--size-body) directly: .doc-scroll-host sets its own
      font-size to `${zoom}em` (App.tsx), and an absolute px value here would

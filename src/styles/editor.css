@@ -4,11 +4,10 @@
 .editor-shell {
   max-width: var(--reading-width);
   margin: 0 auto;
-  /* Same measure as .reader — font context set here (serif, body size)
-     purely so --reading-width's `ch` unit resolves to the same pixel width
-     as the reader's column; the actual editor text below is themed to
-     JetBrains Mono regardless. */
-  padding: 56px 32px 120px;
+  box-sizing: border-box;
+  /* Match the reader's full-width document layout; the actual editor text
+     below is themed to JetBrains Mono regardless. */
+  padding: 56px var(--reading-gutter) 120px;
   font-family: var(--font-serif);
   font-size: var(--size-body);
 }
@@ -72,6 +71,8 @@
 .conflict-banner {
   max-width: var(--reading-width);
   margin: 24px auto 0;
+  box-sizing: border-box;
+  width: calc(100% - (2 * var(--reading-gutter)));
   padding: 12px 16px;
   background: var(--paper-3);
   border: var(--border-hairline);
