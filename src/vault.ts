@@ -42,13 +42,22 @@ const modules = import.meta.glob("../samples/**/*.md", {
   eager: true,
 }) as Record<string, string>;
 
-// Browser mode does not render non-Markdown files, but it still needs to
-// recognise them as valid link targets so link-routing tests match Tauri.
-const nonMarkdownModules = import.meta.glob("../samples/**/!(*.md)", {
-  eager: true,
-}) as Record<string, unknown>;
-const browserNonMarkdownPaths = new Set(
-  Object.keys(nonMarkdownModules).map((modPath) => modPath.replace(/^\.\.\/samples\//, "")),
+// Browser mode cannot expose the user's filesystem, so it gives the explicit
+// non-Markdown regression fixtures Blob URLs. The production app launches
+// files through macOS; this stand-in keeps browser tests able to exercise the
+// same separate-window behaviour without asking Vite to import binaries.
+const browserNonMarkdownPaths = new Set([
+  "planner.html",
+  "files/report.pdf",
+  "files/cover.PNG",
+  "files/brief.DOCX",
+  "files/backup.zip",
+  "files/README",
+  "files/example.HTML",
+  "files/nested/résumé # 100%.html",
+]);
+const browserExternalUrls = new Map(
+  [...browserNonMarkdownPaths].map((path) => [path, URL.createObjectURL(new Blob([`Browser fixture: ${path}`]))] as const),
 );
 
 interface BrowserFile {
@@ -167,7 +176,7 @@ export const vault = {
   /** Whole-vault file listing as a tree (for the sidebar). */
   async listTree(): Promise<TreeNode[]> {
     if (isTauri()) return ipc.readTree();
-    return buildTree(Array.from(browserFiles.keys()));
+    return buildTree([...browserFiles.keys(), ...browserNonMarkdownPaths]);
   },
 
   /** Android-only in-app folder picker's subdirectory listing (see
@@ -255,6 +264,25 @@ export const vault = {
     const prefix = `${path.replace(/\/$/, "")}/`;
     const isDir = [...browserFiles.keys(), ...browserNonMarkdownPaths].some((p) => p.startsWith(prefix));
     return isDir ? { path, isDir: true } : null;
+  },
+
+  /** Launch a non-Markdown file with the operating system's default app.
+   * Tauri resolves the root-relative path again in Rust before calling the
+   * native opener. Browser mode uses its fixture URL as a test-only stand-in. */
+  async openExternalFile(path: string): Promise<void> {
+    const info = await this.pathInfo(path);
+    if (!info || info.isDir) {
+      throw new Error(`markdown-reader: external file is unavailable: ${path}`);
+    }
+    if (isTauri()) {
+      await ipc.openLocal(path);
+      return;
+    }
+    const url = browserExternalUrls.get(path);
+    if (!url) {
+      throw new Error(`markdown-reader: browser preview cannot open: ${path}`);
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
   },
 
   /** Create a new file with caller-supplied content (the broken-wikilink

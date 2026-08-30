@@ -559,11 +559,7 @@ export default function App() {
           setPopover({ kind: "create", path: action.path, title: action.title, ...point });
           break;
         case "open-local":
-          if (isTauri()) {
-            await ipc.openLocal(action.path);
-          } else {
-            window.open(action.path, "_blank", "noopener,noreferrer");
-          }
+          await vault.openExternalFile(action.path);
           break;
         case "external":
         case "noop":
@@ -572,6 +568,14 @@ export default function App() {
     },
     [currentPath, navigate],
   );
+
+  const openExternalFile = useCallback(async (path: string) => {
+    try {
+      await vault.openExternalFile(path);
+    } catch (err) {
+      console.error("[markdown-reader] open external file failed:", err);
+    }
+  }, []);
 
   /** Real checkbox write-back (Phase 4): rewrite the nth task marker in the
    * source, then write through the vault with the tracked mtime. Applied
@@ -1010,11 +1014,17 @@ export default function App() {
             >
               <FilePlus size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} /> New file
             </button>
-            <Favourites nodes={tree} currentPath={currentPath} onOpenFile={navigate} />
+            <Favourites
+              nodes={tree}
+              currentPath={currentPath}
+              onOpenFile={navigate}
+              onOpenExternal={openExternalFile}
+            />
             <Tree
               nodes={tree}
               currentPath={currentPath}
               onOpen={navigate}
+              onOpenExternal={openExternalFile}
               onRenameFile={handleRenameFile}
               onDeleteFile={handleDeleteFile}
             />

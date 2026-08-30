@@ -330,6 +330,24 @@ button {
   background: var(--paper-2);
 }
 
+/* Non-Markdown files retain the same row design; this quiet paper shade is
+   the only distinction beyond their visible extension. */
+.tree-col-item.external-file {
+  background: var(--paper-3);
+}
+
+.tree-col-item.external-file:hover {
+  background: var(--paper-2);
+}
+
+.tree-section {
+  margin-top: 14px;
+}
+
+.tree-section .chrome-label {
+  margin: 0 8px 5px;
+}
+
 .tree-col-item.selected {
   background: var(--accent);
   color: var(--accent-ink);

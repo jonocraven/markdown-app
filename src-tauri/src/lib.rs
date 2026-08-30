@@ -2,13 +2,13 @@ mod commands;
 
 use commands::{AppData, AppState};
 use std::sync::Mutex;
-use tauri::{Emitter, Manager};
+#[cfg(desktop)]
+use tauri::menu::{AboutMetadataBuilder, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
 use tauri::RunEvent;
 #[cfg(desktop)]
-use tauri::menu::{AboutMetadataBuilder, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
-#[cfg(desktop)]
 use tauri::{AppHandle, Wry};
+use tauri::{Emitter, Manager};
 
 /// Build the native menu bar (App/File/Edit/View/Go/Window). Only wired on
 /// desktop targets — `tauri::menu` itself is `#[cfg(desktop)]`-gated.
@@ -228,7 +228,11 @@ pub fn run() {
                 let mut paths: Vec<String> = Vec::new();
                 let mut unsupported = 0u32;
                 for url in &urls {
-                    match url.to_file_path().ok().and_then(|p| p.to_str().map(|s| s.to_string())) {
+                    match url
+                        .to_file_path()
+                        .ok()
+                        .and_then(|p| p.to_str().map(|s| s.to_string()))
+                    {
                         Some(s) => paths.push(s),
                         None => unsupported += 1,
                     }

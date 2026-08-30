@@ -178,7 +178,7 @@ fn relative(root: &Path, path: &Path) -> String {
 fn is_markdown(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|e| e.to_str()),
-        Some("md") | Some("markdown")
+        Some(ext) if ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown")
     )
 }
 
@@ -293,8 +293,8 @@ pub fn list_dirs(path: String) -> Result<Vec<DirEntry>, CommandError> {
     Ok(entries)
 }
 
-/// Recursive listing of markdown files and the directories that lead to
-/// them. Hidden files skipped, .gitignore honoured. Flat list with parent
+/// Recursive listing of visible files and their directories. Hidden files
+/// stay skipped and .gitignore remains honoured. Flat list with parent
 /// pointers — cheap for the frontend to diff.
 #[tauri::command]
 pub fn read_tree(state: State<AppState>) -> Result<Vec<TreeNode>, CommandError> {
@@ -312,9 +312,6 @@ pub fn read_tree(state: State<AppState>) -> Result<Vec<TreeNode>, CommandError> 
             continue;
         }
         let is_dir = entry.file_type().is_some_and(|t| t.is_dir());
-        if !is_dir && !is_markdown(path) {
-            continue;
-        }
         let rel = relative(&root, path);
         let parent = path
             .parent()
@@ -331,7 +328,7 @@ pub fn read_tree(state: State<AppState>) -> Result<Vec<TreeNode>, CommandError> 
         });
     }
 
-    // Drop directories that contain no markdown anywhere beneath them.
+    // Drop directories that contain no visible file anywhere beneath them.
     let file_paths: Vec<&str> = nodes
         .iter()
         .filter(|n| !n.is_dir)
@@ -612,11 +609,9 @@ pub fn watch_root(app: AppHandle, state: State<AppState>) -> Result<(), CommandE
                     _ => continue,
                 };
                 for p in event.paths {
-                    if is_markdown(&p) || p.is_dir() {
-                        let rel = relative(&emit_root, &p);
-                        if !bucket.contains(&rel) {
-                            bucket.push(rel);
-                        }
+                    let rel = relative(&emit_root, &p);
+                    if !bucket.contains(&rel) {
+                        bucket.push(rel);
                     }
                 }
             }
