@@ -382,18 +382,14 @@ export default function App() {
   // Files opened via the OS (Files app "Open With", a .md double-click on
   // desktop, or drag-onto-app on macOS). If the path is already inside the
   // current root, just navigate; otherwise switch the workspace root to the
-  // file's own folder so it can actually be shown. content:// shares (e.g.
-  // tapping "Open With" straight from the Drive app rather than a synced
-  // local folder) can't be read at all — the SAF/content:// bridge that
-  // would need is explicitly out of scope (PLAN-ANDROID.md §2) — so that
-  // case surfaces an explanation instead of silently doing nothing.
+  // file's own folder so it can actually be shown. Android's MainActivity
+  // imports provider-backed content:// shares (such as Google Drive) into a
+  // private local inbox before this handler receives them.
   const handleOpenFile = useCallback(
     async ({ paths, unsupported }: { paths: string[]; unsupported: number }) => {
       if (paths.length === 0) {
         if (unsupported > 0) {
-          alert(
-            "Markdown Reader can't open a file shared directly from an app like Drive — only files already in a folder synced to local storage (see SYNC.md).",
-          );
+          alert("Markdown Reader couldn't access this shared file. Try downloading it first, then open it again.");
         }
         return;
       }

@@ -33,9 +33,21 @@ like an edit from any other program.
   file while it's open and mid-edit, the mtime check in `write_file`
   catches it on the next save and surfaces the keep-mine/take-theirs/
   show-both banner — the same path that protects against any other
-  external editor (PLAN.md §8). This is the one genuinely dangerous
+external editor (PLAN.md §8). This is the one genuinely dangerous
   window in the whole setup; the app was built to handle it correctly
-  from the start, not bolted on for Android.
+from the start, not bolted on for Android.
+
+## Opening a single file from Google Drive
+
+Choose **Open with → Markdown Reader** in Google Drive. The app imports that
+shared file into its private local inbox and opens it immediately, including
+when the app was not already running. This is useful for reading a one-off
+file, but it is an import — edits to that inbox copy do not automatically
+write back to Drive.
+
+For notes you want to edit across your Mac and phone, use the two-way sync
+setup above. It gives Markdown Reader a normal local folder to work with and
+lets Drive receive changes in both directions.
 - **Don't try to "coordinate" with the sync tool.** No app-level awareness
   of sync state, no pause-during-write logic, no polling the sync tool's
   own status. The mtime conflict check already covers the race.
