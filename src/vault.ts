@@ -266,17 +266,20 @@ export const vault = {
     return isDir ? { path, isDir: true } : null;
   },
 
-  /** Launch a non-Markdown file with the operating system's default app.
-   * Tauri resolves the root-relative path again in Rust before calling the
-   * native opener. Browser mode uses its fixture URL as a test-only stand-in. */
+  /** Open a root-relative local target with the operating system. On macOS,
+   * a directory target opens in Finder. Tauri resolves the path again in Rust
+   * before calling the native opener; browser mode only simulates file opens. */
   async openExternalFile(path: string): Promise<void> {
     const info = await this.pathInfo(path);
-    if (!info || info.isDir) {
-      throw new Error(`markdown-reader: external file is unavailable: ${path}`);
+    if (!info) {
+      throw new Error(`markdown-reader: local target is unavailable: ${path}`);
     }
     if (isTauri()) {
       await ipc.openLocal(path);
       return;
+    }
+    if (info.isDir) {
+      throw new Error(`markdown-reader: opening folders requires the desktop app: ${path}`);
     }
     const url = browserExternalUrls.get(path);
     if (!url) {

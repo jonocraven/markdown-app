@@ -1062,3 +1062,42 @@ button {
     -webkit-overflow-scrolling: touch;
   }
 }
+
+/* Current-document find stays in one toolbar row, so opening it does not shift the document. */
+.document-find-idle {
+  min-height: 61px; display: flex; justify-content: flex-end; align-items: center;
+  padding: 8px 24px; border-bottom: var(--border-faint); background: var(--paper);
+}
+.document-find-trigger {
+  width: 44px; height: 44px; display: grid; place-items: center;
+  color: var(--graphite);
+}
+.document-find-trigger:hover { color: var(--ink); }
+::highlight(document-find-current) {
+  background: var(--accent); color: var(--accent-ink);
+}
+.document-find {
+  position: relative; z-index: 6; display: flex; align-items: center; gap: 8px;
+  padding: 8px 24px; border-bottom: var(--border-faint); background: var(--paper);
+  font-family: var(--font-mono); color: var(--graphite);
+}
+.document-find input {
+  flex: 1; min-width: 0; font: inherit; font-size: 16px; padding: 7px 8px;
+  color: var(--ink); background: var(--paper); border: var(--border-hairline);
+  border-radius: var(--radius);
+}
+.document-find-count { white-space: nowrap; font-size: var(--size-small); }
+.document-find button { min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+.document-find button:disabled { opacity: 0.3; cursor: default; }
+@media (max-width: 768px), (pointer: coarse) {
+  .document-find-idle { display: none; }
+  .document-find {
+    display: grid; grid-template-columns: minmax(0, 1fr) 44px 44px;
+    padding: 8px 14px; gap: 0;
+  }
+  .document-find input { grid-column: 1 / 3; grid-row: 1; }
+  .document-find-count { grid-column: 1; grid-row: 2; }
+  .document-find button[aria-label="Previous match"] { grid-column: 2; grid-row: 2; }
+  .document-find button[aria-label="Next match"] { grid-column: 3; grid-row: 2; }
+  .document-find button[aria-label="Close find"] { grid-column: 3; grid-row: 1; }
+}

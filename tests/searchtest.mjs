@@ -15,6 +15,24 @@ await run("searchtest", async () => {
   try {
     const { page } = await openApp(browser);
 
+    await check.ok("find in document keeps focus while typing and navigating matches", async () => {
+      const trigger = page.getByRole("button", { name: "Find in document" }).filter({ visible: true });
+      const triggerBox = await trigger.boundingBox();
+      await trigger.click();
+      const input = page.getByRole("searchbox", { name: "Find in document" });
+      await input.type("overview", { delay: 40 });
+      await page.waitForTimeout(400);
+      assertEqual(await input.inputValue(), "overview", "the complete word should be entered");
+      assert(await input.evaluate((el) => el === document.activeElement), "find input should retain focus after a match is highlighted");
+      assertEqual(await page.locator(".document-find-count").innerText(), "1 of 3", "match count should be shown");
+      await page.getByRole("button", { name: "Next match" }).click();
+      assertEqual(await page.locator(".document-find-count").innerText(), "2 of 3", "next should advance the match");
+      const close = page.getByRole("button", { name: "Close find" });
+      const closeBox = await close.boundingBox();
+      assert(Math.abs(triggerBox.y - closeBox.y) <= 1, "the control should stay aligned when find opens");
+      await close.click();
+    });
+
     await check.ok("⇧⌘F opens the search panel and focuses its input", async () => {
       await chord(page, "F", { shift: true });
       await page.locator(".search-panel").waitFor({ timeout: 3000 });

@@ -40,6 +40,14 @@ await run("linktest", async () => {
       await page.locator(".doc-path", { hasText: "linked-note.md" }).waitFor({ timeout: 5000 });
     });
 
+    await check.ok("relative directory links resolve as valid local targets", async () => {
+      await openFromRootBrowser(page, "index");
+      await page.locator(".doc-path", { hasText: "index.md" }).waitFor({ timeout: 5000 });
+      const link = page.locator(".reader table a", { hasText: "Specs folder" });
+      assert((await link.count()) === 1, "directory link not found");
+      assert(!(await link.evaluate((el) => el.classList.contains("broken-link"))), "existing directory link was marked broken");
+    });
+
     await check.ok("relative HTML links open outside the reader", async () => {
       await page.locator(".reader a", { hasText: "torture test" }).click();
       await page.locator(".doc-path", { hasText: "torture-test.md" }).waitFor({ timeout: 5000 });

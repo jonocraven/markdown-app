@@ -20,6 +20,7 @@ import { Tree } from "./components/Tree";
 import { Favourites } from "./components/Favourites";
 import { LinkPopover } from "./components/LinkPopover";
 import { SearchPanel } from "./components/SearchPanel";
+import { DocumentFind } from "./components/DocumentFind";
 import { QuickSwitcher } from "./components/QuickSwitcher";
 import { NewFileDialog } from "./components/NewFileDialog";
 import { FolderPickerDialog } from "./components/FolderPickerDialog";
@@ -93,12 +94,22 @@ export default function App() {
   const [zoom, setZoom] = useState(1);
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFileError, setNewFileError] = useState<string | null>(null);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [overflowMenu, setOverflowMenu] = useState<{ x: number; y: number } | null>(null);
   const isMobileLayout = useMediaQuery(MOBILE_QUERY);
+  useEffect(() => { if (editing || !currentPath) setFindOpen(false); }, [editing, currentPath]);
+  const openDocumentFind = useCallback(() => {
+    if (!currentPath || editing) return;
+    if (isMobileLayout) {
+      if (showTree) togglePane("tree");
+      if (showToc) togglePane("toc");
+    }
+    setFindOpen(true);
+  }, [currentPath, editing, isMobileLayout, showTree, showToc, togglePane]);
 
   // ---- Phase 4: editing / saving / conflict state ----
   // mtimeMs and dirty are plain refs — nothing renders their raw value
@@ -703,7 +714,7 @@ export default function App() {
     if (!useAppStore.getState().editing) setEditing(true);
   }, [conflict, cancelAutosave, setEditing]);
 
-  // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save, ⇧⌘F
+  // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save, ⌘F find, ⇧⌘F
   // search, ⌘K quick switcher. Both Cmd (macOS) and Ctrl (testing) work.
   // Deliberately NOT bound: ⌘P — it's owned entirely by the native File >
   // Print… menu item (see build_menu/on_menu_event in lib.rs), which calls
@@ -752,6 +763,9 @@ export default function App() {
         // ⌘K / Ctrl+K: quick switcher
         e.preventDefault();
         setQuickSwitcherOpen(true);
+      } else if (e.key.toLowerCase() === "f" && !e.shiftKey) {
+        e.preventDefault();
+        openDocumentFind();
       } else if (e.key.toLowerCase() === "f" && e.shiftKey) {
         // ⇧⌘F / Ctrl+Shift+F: search
         e.preventDefault();
@@ -760,7 +774,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goBack, goForward, handleToggleEditing, handleSaveNow, zoomIn, zoomOut]);
+  }, [goBack, goForward, handleToggleEditing, handleSaveNow, zoomIn, zoomOut, openDocumentFind]);
 
   // Native menu bar clicks (Tauri only — see src-tauri/src/lib.rs's
   // on_menu_event/build_menu). Every id maps to the same action its
@@ -955,7 +969,7 @@ export default function App() {
           </button>
         ) : (
           <>
-            <button aria-label="Search" onClick={() => setSearchOpen(true)}>
+            <button aria-label="Find in document" onClick={openDocumentFind} disabled={!currentPath || editing}>
               <Search size={17} strokeWidth={1.5} />
             </button>
             <button aria-label="Quick open" onClick={() => setQuickSwitcherOpen(true)}>
@@ -1029,6 +1043,16 @@ export default function App() {
       )}
 
       <main className="pane-doc">
+        {currentPath && !editing && !findOpen && (
+          <div className="document-find-idle">
+            <button className="document-find-trigger" aria-label="Find in document" onClick={openDocumentFind}>
+              <Search size={17} strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
+        {findOpen && currentPath && !editing && source !== null && (
+          <DocumentFind path={currentPath} source={source} renderedDoc={doc} onClose={() => setFindOpen(false)} />
+        )}
         {currentPath ? (
           <>
             <div

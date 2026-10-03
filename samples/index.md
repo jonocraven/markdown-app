@@ -16,3 +16,4 @@ stem, and a deliberately broken link.
 |---|---|
 | [Linked note](./linked-note.md) | Inside Markdown Reader |
 | [Planner](./planner.html) | In the system default application |
+| [Specs folder](./specs/) | In Finder on macOS |
