@@ -2,13 +2,13 @@ mod commands;
 
 use commands::{AppData, AppState};
 use std::sync::Mutex;
-use tauri::{Emitter, Manager};
+#[cfg(desktop)]
+use tauri::menu::{AboutMetadataBuilder, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
 use tauri::RunEvent;
 #[cfg(desktop)]
-use tauri::menu::{AboutMetadataBuilder, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
-#[cfg(desktop)]
 use tauri::{AppHandle, Wry};
+use tauri::{Emitter, Manager};
 
 /// Build the native menu bar (App/File/Edit/View/Go/Window). Only wired on
 /// desktop targets — `tauri::menu` itself is `#[cfg(desktop)]`-gated.
@@ -217,18 +217,18 @@ pub fn run() {
             #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
             if let RunEvent::Opened { urls } = event {
                 // file:// URLs convert to real paths our std::fs-based core can
-                // read. content:// URLs (Android apps like Drive sharing a file
-                // that isn't necessarily downloaded locally — PLAN-ANDROID.md
-                // §2's SAF/content:// bridge is explicitly out of scope) can't
-                // be converted at all; to_file_path() simply fails for them.
-                // Report the count so the frontend can tell the user why
-                // nothing opened, instead of silently doing nothing (which
-                // read as "Open With doesn't work" — it partly doesn't, by
-                // design, for that specific source).
+                // read. Android's MainActivity turns the provider-backed
+                // content:// URI from Drive and similar apps into a private
+                // inbox file before this event reaches Rust. Keep reporting
+                // any remaining unsupported URL, rather than failing silently.
                 let mut paths: Vec<String> = Vec::new();
                 let mut unsupported = 0u32;
                 for url in &urls {
-                    match url.to_file_path().ok().and_then(|p| p.to_str().map(|s| s.to_string())) {
+                    match url
+                        .to_file_path()
+                        .ok()
+                        .and_then(|p| p.to_str().map(|s| s.to_string()))
+                    {
                         Some(s) => paths.push(s),
                         None => unsupported += 1,
                     }

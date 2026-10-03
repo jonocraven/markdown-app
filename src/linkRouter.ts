@@ -8,6 +8,7 @@
 import { slug } from "github-slugger";
 import { isTauri } from "./ipc";
 import { vault } from "./vault";
+import { isMarkdownPath } from "./fileClassification";
 import { dirDistance, dirname, joinRelative, normalizeStem } from "./pathUtils";
 
 export type LinkAction =
@@ -32,10 +33,6 @@ function filenameSlug(text: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-}
-
-function isMarkdownPath(path: string): boolean {
-  return /\.(?:md|markdown)$/i.test(path);
 }
 
 export async function resolveLinkClick(

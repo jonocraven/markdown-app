@@ -14,7 +14,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 const PORT = 4173;
 const PREVIEW_URL = `http://localhost:${PORT}`;
-const SCRIPTS = ["smoke.mjs", "linktest.mjs", "edittest.mjs", "searchtest.mjs", "fileopstest.mjs", "mobiletest.mjs"];
+const SCRIPTS = ["smoke.mjs", "linktest.mjs", "edittest.mjs", "searchtest.mjs", "fileopstest.mjs", "externalfilestest.mjs", "mobiletest.mjs"];
 
 function run(command, args, opts = {}) {
   return new Promise((resolve, reject) => {

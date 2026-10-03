@@ -20,6 +20,7 @@ import { Tree } from "./components/Tree";
 import { Favourites } from "./components/Favourites";
 import { LinkPopover } from "./components/LinkPopover";
 import { SearchPanel } from "./components/SearchPanel";
+import { DocumentFind } from "./components/DocumentFind";
 import { QuickSwitcher } from "./components/QuickSwitcher";
 import { NewFileDialog } from "./components/NewFileDialog";
 import { FolderPickerDialog } from "./components/FolderPickerDialog";
@@ -93,12 +94,22 @@ export default function App() {
   const [zoom, setZoom] = useState(1);
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
   const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
   const [newFileOpen, setNewFileOpen] = useState(false);
   const [newFileError, setNewFileError] = useState<string | null>(null);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [overflowMenu, setOverflowMenu] = useState<{ x: number; y: number } | null>(null);
   const isMobileLayout = useMediaQuery(MOBILE_QUERY);
+  useEffect(() => { if (editing || !currentPath) setFindOpen(false); }, [editing, currentPath]);
+  const openDocumentFind = useCallback(() => {
+    if (!currentPath || editing) return;
+    if (isMobileLayout) {
+      if (showTree) togglePane("tree");
+      if (showToc) togglePane("toc");
+    }
+    setFindOpen(true);
+  }, [currentPath, editing, isMobileLayout, showTree, showToc, togglePane]);
 
   // ---- Phase 4: editing / saving / conflict state ----
   // mtimeMs and dirty are plain refs — nothing renders their raw value
@@ -382,18 +393,14 @@ export default function App() {
   // Files opened via the OS (Files app "Open With", a .md double-click on
   // desktop, or drag-onto-app on macOS). If the path is already inside the
   // current root, just navigate; otherwise switch the workspace root to the
-  // file's own folder so it can actually be shown. content:// shares (e.g.
-  // tapping "Open With" straight from the Drive app rather than a synced
-  // local folder) can't be read at all — the SAF/content:// bridge that
-  // would need is explicitly out of scope (PLAN-ANDROID.md §2) — so that
-  // case surfaces an explanation instead of silently doing nothing.
+  // file's own folder so it can actually be shown. Android's MainActivity
+  // imports provider-backed content:// shares (such as Google Drive) into a
+  // private local inbox before this handler receives them.
   const handleOpenFile = useCallback(
     async ({ paths, unsupported }: { paths: string[]; unsupported: number }) => {
       if (paths.length === 0) {
         if (unsupported > 0) {
-          alert(
-            "Markdown Reader can't open a file shared directly from an app like Drive — only files already in a folder synced to local storage (see SYNC.md).",
-          );
+          alert("Markdown Reader couldn't access this shared file. Try downloading it first, then open it again.");
         }
         return;
       }
@@ -559,11 +566,7 @@ export default function App() {
           setPopover({ kind: "create", path: action.path, title: action.title, ...point });
           break;
         case "open-local":
-          if (isTauri()) {
-            await ipc.openLocal(action.path);
-          } else {
-            window.open(action.path, "_blank", "noopener,noreferrer");
-          }
+          await vault.openExternalFile(action.path);
           break;
         case "external":
         case "noop":
@@ -572,6 +575,14 @@ export default function App() {
     },
     [currentPath, navigate],
   );
+
+  const openExternalFile = useCallback(async (path: string) => {
+    try {
+      await vault.openExternalFile(path);
+    } catch (err) {
+      console.error("[markdown-reader] open external file failed:", err);
+    }
+  }, []);
 
   /** Real checkbox write-back (Phase 4): rewrite the nth task marker in the
    * source, then write through the vault with the tracked mtime. Applied
@@ -703,7 +714,7 @@ export default function App() {
     if (!useAppStore.getState().editing) setEditing(true);
   }, [conflict, cancelAutosave, setEditing]);
 
-  // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save, ⇧⌘F
+  // Keyboard: ⌘[ / ⌘] history, ⌘+/⌘− zoom, ⌘E edit toggle, ⌘S save, ⌘F find, ⇧⌘F
   // search, ⌘K quick switcher. Both Cmd (macOS) and Ctrl (testing) work.
   // Deliberately NOT bound: ⌘P — it's owned entirely by the native File >
   // Print… menu item (see build_menu/on_menu_event in lib.rs), which calls
@@ -752,6 +763,9 @@ export default function App() {
         // ⌘K / Ctrl+K: quick switcher
         e.preventDefault();
         setQuickSwitcherOpen(true);
+      } else if (e.key.toLowerCase() === "f" && !e.shiftKey) {
+        e.preventDefault();
+        openDocumentFind();
       } else if (e.key.toLowerCase() === "f" && e.shiftKey) {
         // ⇧⌘F / Ctrl+Shift+F: search
         e.preventDefault();
@@ -760,7 +774,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [goBack, goForward, handleToggleEditing, handleSaveNow, zoomIn, zoomOut]);
+  }, [goBack, goForward, handleToggleEditing, handleSaveNow, zoomIn, zoomOut, openDocumentFind]);
 
   // Native menu bar clicks (Tauri only — see src-tauri/src/lib.rs's
   // on_menu_event/build_menu). Every id maps to the same action its
@@ -955,7 +969,7 @@ export default function App() {
           </button>
         ) : (
           <>
-            <button aria-label="Search" onClick={() => setSearchOpen(true)}>
+            <button aria-label="Find in document" onClick={openDocumentFind} disabled={!currentPath || editing}>
               <Search size={17} strokeWidth={1.5} />
             </button>
             <button aria-label="Quick open" onClick={() => setQuickSwitcherOpen(true)}>
@@ -1010,11 +1024,17 @@ export default function App() {
             >
               <FilePlus size={12} strokeWidth={1.5} style={{ verticalAlign: -1 }} /> New file
             </button>
-            <Favourites nodes={tree} currentPath={currentPath} onOpenFile={navigate} />
+            <Favourites
+              nodes={tree}
+              currentPath={currentPath}
+              onOpenFile={navigate}
+              onOpenExternal={openExternalFile}
+            />
             <Tree
               nodes={tree}
               currentPath={currentPath}
               onOpen={navigate}
+              onOpenExternal={openExternalFile}
               onRenameFile={handleRenameFile}
               onDeleteFile={handleDeleteFile}
             />
@@ -1023,6 +1043,16 @@ export default function App() {
       )}
 
       <main className="pane-doc">
+        {currentPath && !editing && !findOpen && (
+          <div className="document-find-idle">
+            <button className="document-find-trigger" aria-label="Find in document" onClick={openDocumentFind}>
+              <Search size={17} strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
+        {findOpen && currentPath && !editing && source !== null && (
+          <DocumentFind path={currentPath} source={source} renderedDoc={doc} onClose={() => setFindOpen(false)} />
+        )}
         {currentPath ? (
           <>
             <div

@@ -61,5 +61,5 @@ export function sanitizeFileName(input: string, ext = ".md"): string {
 /** Drop a markdown extension for display — "notes.md" -> "notes". Folders
  * and already-extensionless names pass through unchanged. */
 export function stripMdExt(name: string): string {
-  return name.replace(/\.(md|markdown)$/, "");
+  return name.replace(/\.(md|markdown)$/i, "");
 }

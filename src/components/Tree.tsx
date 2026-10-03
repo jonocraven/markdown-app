@@ -3,12 +3,14 @@ import { ChevronRight, FileText, Folder } from "lucide-react";
 import type { TreeNode } from "../ipc";
 import { useAppStore } from "../stores/appStore";
 import { dirname, stripMdExt } from "../pathUtils";
+import { classifyTreeNode } from "../fileClassification";
 import { LinkPopover } from "./LinkPopover";
 
 interface TreeProps {
   nodes: TreeNode[];
   currentPath: string | null;
   onOpen: (path: string) => void;
+  onOpenExternal: (path: string) => void;
   onRenameFile: (path: string, newName: string) => void;
   onDeleteFile: (path: string) => void;
 }
@@ -17,6 +19,7 @@ type ContextMenuState = {
   path: string;
   name: string;
   isDir: boolean;
+  isMarkdown: boolean;
   x: number;
   y: number;
   confirmDelete: boolean;
@@ -34,7 +37,7 @@ type ContextMenuState = {
  * `browserDir` to that file's own folder — the browser follows the open
  * document.
  */
-export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }: TreeProps) {
+export function Tree({ nodes, currentPath, onOpen, onOpenExternal, onRenameFile, onDeleteFile }: TreeProps) {
   const rootName = useAppStore((s) => s.rootName);
   const dir = useAppStore((s) => s.browserDir);
   const setDir = useAppStore((s) => s.setBrowserDir);
@@ -93,8 +96,9 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
     e.preventDefault();
     setMenu({
       path: node.path,
-      name: stripMdExt(node.name),
+      name: node.name,
       isDir: node.isDir,
+      isMarkdown: classifyTreeNode(node) === "markdown",
       x: e.clientX,
       y: e.clientY,
       confirmDelete: false,
@@ -112,6 +116,65 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
     const trimmed = renameValue.trim();
     setRenamingPath(null);
     if (trimmed) onRenameFile(path, trimmed);
+  };
+
+  const folders = items.filter((node) => node.isDir);
+  const markdownFiles = items.filter((node) => classifyTreeNode(node) === "markdown");
+  const otherFiles = items.filter((node) => classifyTreeNode(node) === "external");
+
+  const renderNode = (node: TreeNode) => {
+    const kind = classifyTreeNode(node);
+    const isExternal = kind === "external";
+    const label = isExternal ? node.name : stripMdExt(node.name);
+    const rowClass = `tree-item tree-col-item${node.path === currentPath ? " selected" : ""}${
+      isExternal ? " external-file" : ""
+    }`;
+
+    if (renamingPath === node.path) {
+      return (
+        <input
+          key={node.path}
+          autoFocus
+          className="tree-rename-input"
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") confirmRename(node.path);
+            else if (e.key === "Escape") setRenamingPath(null);
+          }}
+          onBlur={() => setRenamingPath(null)}
+        />
+      );
+    }
+
+    if (isExternal) {
+      return (
+        <button
+          key={node.path}
+          className={rowClass}
+          aria-label={`${node.name} (opens with the default application)`}
+          onClick={() => onOpenExternal(node.path)}
+          onContextMenu={(e) => openMenu(e, node)}
+        >
+          <FileText size={12} strokeWidth={1.5} />
+          <span className="tree-col-item-label">{label}</span>
+        </button>
+      );
+    }
+
+    return (
+      <button
+        key={node.path}
+        className={rowClass}
+        aria-current={node.path === currentPath}
+        onClick={() => (node.isDir ? setDir(node.path) : onOpen(node.path))}
+        onContextMenu={(e) => openMenu(e, node)}
+      >
+        {node.isDir ? <Folder size={12} strokeWidth={1.5} /> : <FileText size={12} strokeWidth={1.5} />}
+        <span className="tree-col-item-label">{label}</span>
+        {node.isDir && <ChevronRight size={12} strokeWidth={1.5} className="chevron" />}
+      </button>
+    );
   };
 
   return (
@@ -138,38 +201,21 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
         {items.length === 0 ? (
           <p className="tree-empty">Empty folder</p>
         ) : (
-          items.map((node) =>
-            renamingPath === node.path ? (
-              <input
-                key={node.path}
-                autoFocus
-                className="tree-rename-input"
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") confirmRename(node.path);
-                  else if (e.key === "Escape") setRenamingPath(null);
-                }}
-                onBlur={() => setRenamingPath(null)}
-              />
-            ) : (
-              <button
-                key={node.path}
-                className={`tree-item tree-col-item${node.path === currentPath ? " selected" : ""}`}
-                aria-current={node.path === currentPath}
-                onClick={() => (node.isDir ? setDir(node.path) : onOpen(node.path))}
-                onContextMenu={(e) => openMenu(e, node)}
-              >
-                {node.isDir ? (
-                  <Folder size={12} strokeWidth={1.5} />
-                ) : (
-                  <FileText size={12} strokeWidth={1.5} />
-                )}
-                <span className="tree-col-item-label">{stripMdExt(node.name)}</span>
-                {node.isDir && <ChevronRight size={12} strokeWidth={1.5} className="chevron" />}
-              </button>
-            ),
-          )
+          <>
+            {folders.map(renderNode)}
+            {markdownFiles.length > 0 && (
+              <section className="tree-section" aria-label="Markdown">
+                <p className="chrome-label">Markdown</p>
+                {markdownFiles.map(renderNode)}
+              </section>
+            )}
+            {otherFiles.length > 0 && (
+              <section className="tree-section" aria-label="Other files">
+                <p className="chrome-label">Other files</p>
+                {otherFiles.map(renderNode)}
+              </section>
+            )}
+          </>
         )}
       </div>
 
@@ -185,7 +231,7 @@ export function Tree({ nodes, currentPath, onOpen, onRenameFile, onDeleteFile }:
           >
             {favourites.includes(menu.path) ? "Remove from Favourites" : "Add to Favourites"}
           </button>
-          {!menu.isDir && (
+          {!menu.isDir && menu.isMarkdown && (
             <>
               <button className="link-popover-item" onClick={startRename}>
                 Rename
